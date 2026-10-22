@@ -1,0 +1,24 @@
+{
+  "properties": {
+    "field": {
+      "title": "Field",
+      "type": "string"
+    },
+    "new_value": {
+      "title": "New Value",
+      "type": "string"
+    },
+    "reason": {
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "field",
+    "new_value",
+    "reason"
+  ],
+  "title": "EditRequestCreate",
+  "type": "object"
+}

@@ -1,0 +1,73 @@
+{
+  "properties": {
+    "certificate_no": {
+      "title": "Certificate No",
+      "type": "string"
+    },
+    "student_id": {
+      "title": "Student Id",
+      "type": "string"
+    },
+    "apaar_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Apaar Id"
+    },
+    "provisional_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provisional Id"
+    },
+    "student_name": {
+      "title": "Student Name",
+      "type": "string"
+    },
+    "institution_name": {
+      "title": "Institution Name",
+      "type": "string"
+    },
+    "programme_name": {
+      "title": "Programme Name",
+      "type": "string"
+    },
+    "academic_year": {
+      "title": "Academic Year",
+      "type": "string"
+    },
+    "issued_at": {
+      "format": "date-time",
+      "title": "Issued At",
+      "type": "string"
+    },
+    "verify_url": {
+      "title": "Verify Url",
+      "type": "string"
+    }
+  },
+  "required": [
+    "certificate_no",
+    "student_id",
+    "apaar_id",
+    "student_name",
+    "institution_name",
+    "programme_name",
+    "academic_year",
+    "issued_at",
+    "verify_url"
+  ],
+  "title": "Certificate",
+  "type": "object"
+}

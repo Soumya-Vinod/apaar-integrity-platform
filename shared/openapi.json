@@ -1,0 +1,5315 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "APAAR Integrity Platform",
+    "description": "Verifiable, consent-first student records for AICTE-approved institutions.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Me",
+        "operationId": "me_me_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/institutions": {
+      "get": {
+        "tags": [
+          "institutions"
+        ],
+        "summary": "List Institutions",
+        "operationId": "list_institutions_institutions_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Institution"
+                  },
+                  "title": "Response List Institutions Institutions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/institutions/{institution_id}": {
+      "get": {
+        "tags": [
+          "institutions"
+        ],
+        "summary": "Get Institution",
+        "operationId": "get_institution_institutions__institution_id__get",
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Institution Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/institutions/{institution_id}/api-keys": {
+      "post": {
+        "tags": [
+          "institutions"
+        ],
+        "summary": "Create Api Key",
+        "operationId": "create_api_key_institutions__institution_id__api_keys_post",
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Institution Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyCreated"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/institutions/{institution_id}/seat-ledger": {
+      "get": {
+        "tags": [
+          "seat-ledger"
+        ],
+        "summary": "Get Seat Ledger",
+        "operationId": "get_seat_ledger_institutions__institution_id__seat_ledger_get",
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Institution Id"
+            }
+          },
+          {
+            "name": "academic_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "2026-27",
+              "title": "Academic Year"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatLedger"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/batches": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Upload Batch",
+        "description": "Upload a CSV or XLSX of admissions; returns the batch and a suggested column mapping.",
+        "operationId": "upload_batch_batches_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_batch_batches_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchUploadResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/batches/{batch_id}/mapping": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Set Mapping",
+        "operationId": "set_mapping_batches__batch_id__mapping_post",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MappingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/batches/{batch_id}": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Get Batch",
+        "operationId": "get_batch_batches__batch_id__get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/batches/{batch_id}/issues": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Get Issues",
+        "operationId": "get_issues_batches__batch_id__issues_get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ValidationIssue"
+                  },
+                  "title": "Response Get Issues Batches  Batch Id  Issues Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/batches/{batch_id}/commit": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Commit Batch",
+        "operationId": "commit_batch_batches__batch_id__commit_post",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admissions": {
+      "get": {
+        "tags": [
+          "admissions"
+        ],
+        "summary": "List Admissions",
+        "description": "List admissions. APAAR IDs are always masked as XXXX-XXXX-1234.",
+        "operationId": "list_admissions_admissions_get",
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Institution Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "academic_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Academic Year"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "submitted",
+                    "student_confirmed",
+                    "student_disputed",
+                    "no_response",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "seat_pool",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "regular",
+                    "tfw",
+                    "fn_oci_pio",
+                    "nri"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Seat Pool"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Admission"
+                  },
+                  "title": "Response List Admissions Admissions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admissions/{admission_id}/edit-requests": {
+      "post": {
+        "tags": [
+          "admissions"
+        ],
+        "summary": "Create Edit Request",
+        "operationId": "create_edit_request_admissions__admission_id__edit_requests_post",
+        "parameters": [
+          {
+            "name": "admission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Admission Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditRequestCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditRequest"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edit-requests/{edit_request_id}/decision": {
+      "post": {
+        "tags": [
+          "admissions"
+        ],
+        "summary": "Decide Edit Request",
+        "operationId": "decide_edit_request_edit_requests__edit_request_id__decision_post",
+        "parameters": [
+          {
+            "name": "edit_request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Edit Request Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditRequest"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/review-cases": {
+      "get": {
+        "tags": [
+          "review-cases"
+        ],
+        "summary": "List Review Cases",
+        "operationId": "list_review_cases_review_cases_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "intake_overrun",
+                    "blind_match",
+                    "dispute",
+                    "signal"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "confirmed",
+                    "dismissed",
+                    "correction_requested"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewCase"
+                  },
+                  "title": "Response List Review Cases Review Cases Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/review-cases/{case_id}": {
+      "get": {
+        "tags": [
+          "review-cases"
+        ],
+        "summary": "Get Review Case",
+        "operationId": "get_review_case_review_cases__case_id__get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCase"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/review-cases/{case_id}/resolve": {
+      "post": {
+        "tags": [
+          "review-cases"
+        ],
+        "summary": "Resolve Review Case",
+        "operationId": "resolve_review_case_review_cases__case_id__resolve_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCase"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/audit/verify": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Verify Audit Chain",
+        "operationId": "verify_audit_chain_audit_verify_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditVerifyResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integrations/sso/mock": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Sso Mock",
+        "description": "SIMULATED AICTE portal SSO: returns a demo user and the headers to send in mock mode.",
+        "operationId": "sso_mock_integrations_sso_mock_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SsoMockRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoMockResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integrations/apaar/verify": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Apaar Verify",
+        "description": "SIMULATED APAAR registry lookup. Format check is real; existence is simulated.",
+        "operationId": "apaar_verify_integrations_apaar_verify_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApaarVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApaarVerifyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integrity/institutions": {
+      "get": {
+        "tags": [
+          "integrity"
+        ],
+        "summary": "Ranked Institutions",
+        "description": "Institutions ranked most anomalous first.",
+        "operationId": "ranked_institutions_integrity_institutions_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrityRanking"
+                  },
+                  "title": "Response Ranked Institutions Integrity Institutions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integrity/institutions/{institution_id}": {
+      "get": {
+        "tags": [
+          "integrity"
+        ],
+        "summary": "Institution Integrity",
+        "description": "Signals and anomaly explanation for one institution.",
+        "operationId": "institution_integrity_integrity_institutions__institution_id__get",
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Institution Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrityDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/blind-match/encode": {
+      "post": {
+        "tags": [
+          "blind-match"
+        ],
+        "summary": "Encode",
+        "description": "Demo only: show what a Bloom-filter encoding looks like. Never stores input.",
+        "operationId": "encode_blind_match_encode_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EncodeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncodeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/blind-match/cases": {
+      "get": {
+        "tags": [
+          "blind-match"
+        ],
+        "summary": "Cases",
+        "operationId": "cases_blind_match_cases_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BlindMatchCase"
+                  },
+                  "title": "Response Cases Blind Match Cases Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/enrolment": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Enrolment",
+        "operationId": "enrolment_reports_enrolment_get",
+        "parameters": [
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "state",
+                "programme",
+                "category",
+                "gender"
+              ],
+              "type": "string",
+              "default": "state",
+              "title": "Group By"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "pdf",
+                "xlsx"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON, or the file when format=pdf or format=xlsx",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrolmentReport"
+                }
+              },
+              "application/pdf": {},
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/accreditation/{institution_id}": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Accreditation",
+        "operationId": "accreditation_reports_accreditation__institution_id__get",
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Institution Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "pdf",
+                "xlsx"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON, or the file when format=pdf or format=xlsx",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccreditationReport"
+                }
+              },
+              "application/pdf": {},
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/certificates/{student_id}": {
+      "get": {
+        "tags": [
+          "certificates"
+        ],
+        "summary": "Get Certificate",
+        "description": "Certificate data with the APAAR ID next to the student ID and a verify link.",
+        "operationId": "get_certificate_certificates__student_id__get",
+        "parameters": [
+          {
+            "name": "student_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Student Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Certificate"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/credentials": {
+      "post": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Issue Credential",
+        "description": "Issue an Ed25519-signed credential for one verifier. Mock returns a pre-signed demo.",
+        "operationId": "issue_credential_credentials_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Credential"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/credentials/{credential_id}/revoke": {
+      "post": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Revoke Credential",
+        "operationId": "revoke_credential_credentials__credential_id__revoke_post",
+        "parameters": [
+          {
+            "name": "credential_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Credential Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Revocation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/credentials/revocations": {
+      "get": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Revocations",
+        "description": "Public: offline verifiers sync this list.",
+        "operationId": "revocations_credentials_revocations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevocationList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/credentials/public-key": {
+      "get": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Public Key",
+        "description": "Public: the Ed25519 key verifiers use to check credential signatures.",
+        "operationId": "public_key_credentials_public_key_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicKey"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/me/records": {
+      "get": {
+        "tags": [
+          "students"
+        ],
+        "summary": "My Records",
+        "operationId": "my_records_students_me_records_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentRecords"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/me/consents": {
+      "get": {
+        "tags": [
+          "students"
+        ],
+        "summary": "My Consents",
+        "operationId": "my_consents_students_me_consents_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Consent"
+                  },
+                  "title": "Response My Consents Students Me Consents Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "students"
+        ],
+        "summary": "Grant Consent",
+        "operationId": "grant_consent_students_me_consents_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/me/access-log": {
+      "get": {
+        "tags": [
+          "students"
+        ],
+        "summary": "My Access Log",
+        "operationId": "my_access_log_students_me_access_log_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccessLogEntry"
+                  },
+                  "title": "Response My Access Log Students Me Access Log Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/telegram": {
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Telegram Webhook",
+        "description": "Telegram updates. Rejected unless the secret header matches TELEGRAM_WEBHOOK_SECRET.",
+        "operationId": "telegram_webhook_webhooks_telegram_post",
+        "parameters": [
+          {
+            "name": "x-telegram-bot-api-secret-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Telegram-Bot-Api-Secret-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookAck"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccessLogEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "accessor": {
+            "type": "string",
+            "title": "Accessor"
+          },
+          "accessor_role": {
+            "type": "string",
+            "title": "Accessor Role"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "consent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Id"
+          },
+          "accessed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Accessed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "accessor",
+          "accessor_role",
+          "purpose",
+          "fields",
+          "consent_id",
+          "accessed_at"
+        ],
+        "title": "AccessLogEntry"
+      },
+      "AccreditationProgramme": {
+        "properties": {
+          "programme_code": {
+            "type": "string",
+            "title": "Programme Code"
+          },
+          "approved_total": {
+            "type": "integer",
+            "title": "Approved Total"
+          },
+          "admitted_total": {
+            "type": "integer",
+            "title": "Admitted Total"
+          },
+          "overrun": {
+            "type": "integer",
+            "title": "Overrun"
+          }
+        },
+        "type": "object",
+        "required": [
+          "programme_code",
+          "approved_total",
+          "admitted_total",
+          "overrun"
+        ],
+        "title": "AccreditationProgramme"
+      },
+      "AccreditationReport": {
+        "properties": {
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "institution_name": {
+            "type": "string",
+            "title": "Institution Name"
+          },
+          "academic_year": {
+            "type": "string",
+            "title": "Academic Year"
+          },
+          "integrity_score": {
+            "type": "number",
+            "title": "Integrity Score"
+          },
+          "apaar_coverage_pct": {
+            "type": "number",
+            "title": "Apaar Coverage Pct"
+          },
+          "open_review_cases": {
+            "type": "integer",
+            "title": "Open Review Cases"
+          },
+          "programmes": {
+            "items": {
+              "$ref": "#/components/schemas/AccreditationProgramme"
+            },
+            "type": "array",
+            "title": "Programmes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution_id",
+          "institution_name",
+          "academic_year",
+          "integrity_score",
+          "apaar_coverage_pct",
+          "open_review_cases",
+          "programmes"
+        ],
+        "title": "AccreditationReport"
+      },
+      "Admission": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "student_id": {
+            "type": "string",
+            "title": "Student Id"
+          },
+          "student_name": {
+            "type": "string",
+            "title": "Student Name"
+          },
+          "apaar_id_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apaar Id Masked",
+            "description": "Masked as XXXX-XXXX-1234"
+          },
+          "provisional_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisional Id"
+          },
+          "apaar_opt_out": {
+            "type": "boolean",
+            "title": "Apaar Opt Out",
+            "default": false
+          },
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "programme_id": {
+            "type": "string",
+            "title": "Programme Id"
+          },
+          "programme_code": {
+            "type": "string",
+            "title": "Programme Code"
+          },
+          "academic_year": {
+            "type": "string",
+            "title": "Academic Year"
+          },
+          "seat_pool": {
+            "type": "string",
+            "enum": [
+              "regular",
+              "tfw",
+              "fn_oci_pio",
+              "nri"
+            ],
+            "title": "Seat Pool"
+          },
+          "admission_mode": {
+            "type": "string",
+            "enum": [
+              "cap",
+              "management",
+              "lateral",
+              "spot"
+            ],
+            "title": "Admission Mode"
+          },
+          "admission_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Admission Date"
+          },
+          "qualifying_exam_pct": {
+            "type": "number",
+            "title": "Qualifying Exam Pct"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "submitted",
+              "student_confirmed",
+              "student_disputed",
+              "no_response",
+              "withdrawn"
+            ],
+            "title": "Status"
+          },
+          "batch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "student_id",
+          "student_name",
+          "institution_id",
+          "programme_id",
+          "programme_code",
+          "academic_year",
+          "seat_pool",
+          "admission_mode",
+          "admission_date",
+          "qualifying_exam_pct",
+          "status"
+        ],
+        "title": "Admission"
+      },
+      "AnomalyExplanation": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "top_features": {
+            "items": {
+              "$ref": "#/components/schemas/AnomalyFeature"
+            },
+            "type": "array",
+            "title": "Top Features"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "top_features"
+        ],
+        "title": "AnomalyExplanation"
+      },
+      "AnomalyFeature": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "peer_median": {
+            "type": "number",
+            "title": "Peer Median"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "value",
+          "peer_median"
+        ],
+        "title": "AnomalyFeature"
+      },
+      "ApaarVerifyRequest": {
+        "properties": {
+          "apaar_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apaar Id"
+          },
+          "opted_out": {
+            "type": "boolean",
+            "title": "Opted Out",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "ApaarVerifyRequest"
+      },
+      "ApaarVerifyResponse": {
+        "properties": {
+          "simulated": {
+            "type": "boolean",
+            "const": true,
+            "title": "Simulated",
+            "default": true
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "SIMULATED APAAR registry"
+          },
+          "apaar_id_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apaar Id Masked"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "found",
+              "not_found",
+              "invalid_format",
+              "opted_out",
+              "missing"
+            ],
+            "title": "Result"
+          },
+          "rule_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "apaar_id_masked",
+          "result"
+        ],
+        "title": "ApaarVerifyResponse"
+      },
+      "ApiKeyCreated": {
+        "properties": {
+          "key_id": {
+            "type": "string",
+            "title": "Key Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "api_key": {
+            "type": "string",
+            "title": "Api Key"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": "Shown once. Only a hash is stored."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key_id",
+          "institution_id",
+          "api_key",
+          "created_at"
+        ],
+        "title": "ApiKeyCreated"
+      },
+      "AuditVerifyResult": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "first_broken_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Broken Index"
+          },
+          "checked": {
+            "type": "integer",
+            "title": "Checked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "first_broken_index",
+          "checked"
+        ],
+        "title": "AuditVerifyResult"
+      },
+      "Batch": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "uploaded_by": {
+            "type": "string",
+            "title": "Uploaded By"
+          },
+          "file_name": {
+            "type": "string",
+            "title": "File Name"
+          },
+          "file_hash": {
+            "type": "string",
+            "title": "File Hash"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "mapped",
+              "validated",
+              "committed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/BatchCounts"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "institution_id",
+          "uploaded_by",
+          "file_name",
+          "file_hash",
+          "status",
+          "counts",
+          "created_at"
+        ],
+        "title": "Batch"
+      },
+      "BatchCounts": {
+        "properties": {
+          "rows_total": {
+            "type": "integer",
+            "title": "Rows Total",
+            "default": 0
+          },
+          "errors": {
+            "type": "integer",
+            "title": "Errors",
+            "default": 0
+          },
+          "warnings": {
+            "type": "integer",
+            "title": "Warnings",
+            "default": 0
+          },
+          "review": {
+            "type": "integer",
+            "title": "Review",
+            "default": 0
+          },
+          "info": {
+            "type": "integer",
+            "title": "Info",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "BatchCounts"
+      },
+      "BatchUploadResult": {
+        "properties": {
+          "batch": {
+            "$ref": "#/components/schemas/Batch"
+          },
+          "suggested_mapping": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Suggested Mapping",
+            "description": "Uploaded column name -> admissions-template column name"
+          },
+          "unmapped_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unmapped Columns"
+          }
+        },
+        "type": "object",
+        "required": [
+          "batch",
+          "suggested_mapping",
+          "unmapped_columns"
+        ],
+        "title": "BatchUploadResult"
+      },
+      "BlindMatchCase": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "record_a": {
+            "type": "string",
+            "title": "Record A"
+          },
+          "record_b": {
+            "type": "string",
+            "title": "Record B"
+          },
+          "institution_a_id": {
+            "type": "string",
+            "title": "Institution A Id"
+          },
+          "institution_b_id": {
+            "type": "string",
+            "title": "Institution B Id"
+          },
+          "dice": {
+            "type": "number",
+            "title": "Dice"
+          },
+          "fields_compared": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields Compared"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "confirmed",
+              "dismissed",
+              "correction_requested"
+            ],
+            "title": "Status"
+          },
+          "review_case_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Case Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "record_a",
+          "record_b",
+          "institution_a_id",
+          "institution_b_id",
+          "dice",
+          "fields_compared",
+          "status"
+        ],
+        "title": "BlindMatchCase"
+      },
+      "Body_upload_batch_batches_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_batch_batches_post"
+      },
+      "Certificate": {
+        "properties": {
+          "certificate_no": {
+            "type": "string",
+            "title": "Certificate No"
+          },
+          "student_id": {
+            "type": "string",
+            "title": "Student Id"
+          },
+          "apaar_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apaar Id"
+          },
+          "provisional_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisional Id"
+          },
+          "student_name": {
+            "type": "string",
+            "title": "Student Name"
+          },
+          "institution_name": {
+            "type": "string",
+            "title": "Institution Name"
+          },
+          "programme_name": {
+            "type": "string",
+            "title": "Programme Name"
+          },
+          "academic_year": {
+            "type": "string",
+            "title": "Academic Year"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Issued At"
+          },
+          "verify_url": {
+            "type": "string",
+            "title": "Verify Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "certificate_no",
+          "student_id",
+          "apaar_id",
+          "student_name",
+          "institution_name",
+          "programme_name",
+          "academic_year",
+          "issued_at",
+          "verify_url"
+        ],
+        "title": "Certificate"
+      },
+      "CommitResult": {
+        "properties": {
+          "batch_id": {
+            "type": "string",
+            "title": "Batch Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "mapped",
+              "validated",
+              "committed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "rows_committed": {
+            "type": "integer",
+            "title": "Rows Committed"
+          },
+          "rows_rejected": {
+            "type": "integer",
+            "title": "Rows Rejected"
+          },
+          "review_cases_created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Review Cases Created"
+          }
+        },
+        "type": "object",
+        "required": [
+          "batch_id",
+          "status",
+          "rows_committed",
+          "rows_rejected",
+          "review_cases_created"
+        ],
+        "title": "CommitResult"
+      },
+      "Consent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "verifier_id": {
+            "type": "string",
+            "title": "Verifier Id"
+          },
+          "verifier_name": {
+            "type": "string",
+            "title": "Verifier Name"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Granted At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "verifier_id",
+          "verifier_name",
+          "purpose",
+          "fields",
+          "granted_at",
+          "expires_at"
+        ],
+        "title": "Consent"
+      },
+      "ConsentCreate": {
+        "properties": {
+          "verifier_id": {
+            "type": "string",
+            "title": "Verifier Id"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "expires_in_days": {
+            "type": "integer",
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Expires In Days",
+            "default": 30
+          }
+        },
+        "type": "object",
+        "required": [
+          "verifier_id",
+          "purpose",
+          "fields"
+        ],
+        "title": "ConsentCreate"
+      },
+      "Credential": {
+        "properties": {
+          "credential_id": {
+            "type": "string",
+            "title": "Credential Id"
+          },
+          "pseudonym": {
+            "type": "string",
+            "title": "Pseudonym",
+            "description": "Per-verifier pseudonym for the student"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "signature_b64": {
+            "type": "string",
+            "title": "Signature B64"
+          },
+          "key_id": {
+            "type": "string",
+            "title": "Key Id"
+          },
+          "qr_payload": {
+            "type": "string",
+            "title": "Qr Payload",
+            "description": "base64url(canonical payload) + '.' + base64url(signature)"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential_id",
+          "pseudonym",
+          "payload",
+          "signature_b64",
+          "key_id",
+          "qr_payload",
+          "expires_at"
+        ],
+        "title": "Credential"
+      },
+      "CredentialRequest": {
+        "properties": {
+          "verifier_id": {
+            "type": "string",
+            "title": "Verifier Id"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "expires_in_days": {
+            "type": "integer",
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Expires In Days",
+            "default": 30
+          }
+        },
+        "type": "object",
+        "required": [
+          "verifier_id",
+          "purpose",
+          "fields"
+        ],
+        "title": "CredentialRequest"
+      },
+      "EditDecision": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "title": "Decision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "EditDecision"
+      },
+      "EditRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "admission_id": {
+            "type": "string",
+            "title": "Admission Id"
+          },
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "old_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Value"
+          },
+          "new_value": {
+            "type": "string",
+            "title": "New Value"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected"
+            ],
+            "title": "Status"
+          },
+          "requested_by": {
+            "type": "string",
+            "title": "Requested By"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "admission_id",
+          "field",
+          "new_value",
+          "reason",
+          "status",
+          "requested_by",
+          "created_at"
+        ],
+        "title": "EditRequest"
+      },
+      "EditRequestCreate": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "new_value": {
+            "type": "string",
+            "title": "New Value"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "new_value",
+          "reason"
+        ],
+        "title": "EditRequestCreate"
+      },
+      "EncodeRequest": {
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fields"
+        ],
+        "title": "EncodeRequest"
+      },
+      "EncodeResponse": {
+        "properties": {
+          "demo_only": {
+            "type": "boolean",
+            "const": true,
+            "title": "Demo Only",
+            "default": true
+          },
+          "bits": {
+            "type": "integer",
+            "title": "Bits"
+          },
+          "k": {
+            "type": "integer",
+            "title": "K"
+          },
+          "set_bits": {
+            "type": "integer",
+            "title": "Set Bits"
+          },
+          "encoding_b64": {
+            "type": "string",
+            "title": "Encoding B64"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bits",
+          "k",
+          "set_bits",
+          "encoding_b64"
+        ],
+        "title": "EncodeResponse"
+      },
+      "EnrolmentReport": {
+        "properties": {
+          "academic_year": {
+            "type": "string",
+            "title": "Academic Year"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "state",
+              "programme",
+              "category",
+              "gender"
+            ],
+            "title": "Group By"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/EnrolmentRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "academic_year",
+          "group_by",
+          "total",
+          "rows"
+        ],
+        "title": "EnrolmentReport"
+      },
+      "EnrolmentRow": {
+        "properties": {
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "admissions": {
+            "type": "integer",
+            "title": "Admissions"
+          },
+          "opted_out": {
+            "type": "integer",
+            "title": "Opted Out"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "admissions",
+          "opted_out"
+        ],
+        "title": "EnrolmentRow"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "mock_mode": {
+            "type": "boolean",
+            "title": "Mock Mode"
+          },
+          "engine_import_ok": {
+            "type": "boolean",
+            "title": "Engine Import Ok"
+          },
+          "engine_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Version"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "mock_mode",
+          "engine_import_ok",
+          "version"
+        ],
+        "title": "Health"
+      },
+      "Institution": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "aicte_code": {
+            "type": "string",
+            "title": "Aicte Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "parent_trust": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Trust"
+          },
+          "integrity_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrity Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "aicte_code",
+          "name",
+          "state"
+        ],
+        "title": "Institution"
+      },
+      "InstitutionDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "aicte_code": {
+            "type": "string",
+            "title": "Aicte Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "parent_trust": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Trust"
+          },
+          "integrity_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrity Score"
+          },
+          "programmes": {
+            "items": {
+              "$ref": "#/components/schemas/Programme"
+            },
+            "type": "array",
+            "title": "Programmes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "aicte_code",
+          "name",
+          "state",
+          "programmes"
+        ],
+        "title": "InstitutionDetail"
+      },
+      "IntegrityDetail": {
+        "properties": {
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "integrity_score": {
+            "type": "number",
+            "title": "Integrity Score"
+          },
+          "components": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Components"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/SignalOut"
+            },
+            "type": "array",
+            "title": "Signals"
+          },
+          "anomaly": {
+            "$ref": "#/components/schemas/AnomalyExplanation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution_id",
+          "integrity_score",
+          "components",
+          "signals",
+          "anomaly"
+        ],
+        "title": "IntegrityDetail"
+      },
+      "IntegrityRanking": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "institution_name": {
+            "type": "string",
+            "title": "Institution Name"
+          },
+          "aicte_code": {
+            "type": "string",
+            "title": "Aicte Code"
+          },
+          "integrity_score": {
+            "type": "number",
+            "title": "Integrity Score"
+          },
+          "anomaly_score": {
+            "type": "number",
+            "title": "Anomaly Score"
+          },
+          "top_signals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Top Signals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "institution_id",
+          "institution_name",
+          "aicte_code",
+          "integrity_score",
+          "anomaly_score",
+          "top_signals"
+        ],
+        "title": "IntegrityRanking"
+      },
+      "MappingRequest": {
+        "properties": {
+          "mapping": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Mapping"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mapping"
+        ],
+        "title": "MappingRequest"
+      },
+      "PoolLedger": {
+        "properties": {
+          "pool": {
+            "type": "string",
+            "enum": [
+              "regular",
+              "tfw",
+              "fn_oci_pio",
+              "nri"
+            ],
+            "title": "Pool"
+          },
+          "approved_seats": {
+            "type": "integer",
+            "title": "Approved Seats"
+          },
+          "admitted": {
+            "type": "integer",
+            "title": "Admitted"
+          },
+          "available": {
+            "type": "integer",
+            "title": "Available"
+          },
+          "overrun": {
+            "type": "integer",
+            "title": "Overrun"
+          },
+          "rule_version": {
+            "type": "string",
+            "title": "Rule Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pool",
+          "approved_seats",
+          "admitted",
+          "available",
+          "overrun",
+          "rule_version"
+        ],
+        "title": "PoolLedger"
+      },
+      "Programme": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "duration_years": {
+            "type": "integer",
+            "title": "Duration Years"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "level",
+          "duration_years"
+        ],
+        "title": "Programme"
+      },
+      "ProgrammeLedger": {
+        "properties": {
+          "programme_id": {
+            "type": "string",
+            "title": "Programme Id"
+          },
+          "programme_code": {
+            "type": "string",
+            "title": "Programme Code"
+          },
+          "programme_name": {
+            "type": "string",
+            "title": "Programme Name"
+          },
+          "approved_total": {
+            "type": "integer",
+            "title": "Approved Total"
+          },
+          "admitted_total": {
+            "type": "integer",
+            "title": "Admitted Total"
+          },
+          "overrun": {
+            "type": "integer",
+            "title": "Overrun"
+          },
+          "pools": {
+            "items": {
+              "$ref": "#/components/schemas/PoolLedger"
+            },
+            "type": "array",
+            "title": "Pools"
+          }
+        },
+        "type": "object",
+        "required": [
+          "programme_id",
+          "programme_code",
+          "programme_name",
+          "approved_total",
+          "admitted_total",
+          "overrun",
+          "pools"
+        ],
+        "title": "ProgrammeLedger"
+      },
+      "PublicKey": {
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "const": "Ed25519",
+            "title": "Algorithm",
+            "default": "Ed25519"
+          },
+          "key_id": {
+            "type": "string",
+            "title": "Key Id"
+          },
+          "public_key_b64": {
+            "type": "string",
+            "title": "Public Key B64"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key_id",
+          "public_key_b64"
+        ],
+        "title": "PublicKey"
+      },
+      "ResolveRequest": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "dismissed",
+              "correction_requested"
+            ],
+            "title": "Status"
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "note"
+        ],
+        "title": "ResolveRequest"
+      },
+      "ReviewCase": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "intake_overrun",
+              "blind_match",
+              "dispute",
+              "signal"
+            ],
+            "title": "Kind"
+          },
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "confirmed",
+              "dismissed",
+              "correction_requested"
+            ],
+            "title": "Status"
+          },
+          "reviewer_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "institution_id",
+          "title",
+          "evidence",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ReviewCase"
+      },
+      "Revocation": {
+        "properties": {
+          "credential_id": {
+            "type": "string",
+            "title": "Credential Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "revoked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Revoked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential_id",
+          "reason",
+          "revoked_at"
+        ],
+        "title": "Revocation"
+      },
+      "RevocationList": {
+        "properties": {
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revoked": {
+            "items": {
+              "$ref": "#/components/schemas/Revocation"
+            },
+            "type": "array",
+            "title": "Revoked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated_at",
+          "revoked"
+        ],
+        "title": "RevocationList"
+      },
+      "RevokeRequest": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "RevokeRequest"
+      },
+      "RuleCode": {
+        "type": "string",
+        "enum": [
+          "REQUIRED_FIELD_MISSING",
+          "APAAR_MISSING",
+          "APAAR_FORMAT",
+          "APAAR_OPTED_OUT",
+          "DUP_IN_BATCH",
+          "DUP_CROSS_INSTITUTION",
+          "FUZZY_MATCH_CANDIDATE",
+          "PROGRAMME_UNKNOWN",
+          "POOL_UNKNOWN",
+          "DATE_INVALID",
+          "ADMISSION_AFTER_CUTOFF",
+          "BACKDATED_ENTRY",
+          "FN_WITHOUT_NATIONALITY",
+          "OCI_INCONSISTENT",
+          "NRI_POOL_MISMATCH",
+          "AGE_IMPLAUSIBLE",
+          "QUALIFYING_BELOW_NORM",
+          "INTAKE_OVERRUN",
+          "SHARED_CONTACT_CLUSTER"
+        ],
+        "title": "RuleCode"
+      },
+      "SeatLedger": {
+        "properties": {
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "academic_year": {
+            "type": "string",
+            "title": "Academic Year"
+          },
+          "programmes": {
+            "items": {
+              "$ref": "#/components/schemas/ProgrammeLedger"
+            },
+            "type": "array",
+            "title": "Programmes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution_id",
+          "academic_year",
+          "programmes"
+        ],
+        "title": "SeatLedger"
+      },
+      "SignalOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "review",
+              "info"
+            ],
+            "title": "Severity"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "evidence"
+        ],
+        "title": "SignalOut"
+      },
+      "SsoMockRequest": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "institution_admin",
+              "institution_operator",
+              "aicte_admin",
+              "student",
+              "verifier",
+              "auditor"
+            ],
+            "title": "Role",
+            "default": "institution_admin"
+          },
+          "institution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution Id"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "title": "SsoMockRequest"
+      },
+      "SsoMockResponse": {
+        "properties": {
+          "simulated": {
+            "type": "boolean",
+            "const": true,
+            "title": "Simulated",
+            "default": true
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "SIMULATED AICTE portal SSO"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "demo_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Demo Headers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "demo_headers"
+        ],
+        "title": "SsoMockResponse"
+      },
+      "StudentProfile": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "apaar_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apaar Id"
+          },
+          "provisional_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisional Id"
+          },
+          "opted_out": {
+            "type": "boolean",
+            "title": "Opted Out"
+          },
+          "dob": {
+            "type": "string",
+            "format": "date",
+            "title": "Dob"
+          },
+          "telegram_linked": {
+            "type": "boolean",
+            "title": "Telegram Linked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "full_name",
+          "apaar_id",
+          "opted_out",
+          "dob",
+          "telegram_linked"
+        ],
+        "title": "StudentProfile"
+      },
+      "StudentRecords": {
+        "properties": {
+          "student": {
+            "$ref": "#/components/schemas/StudentProfile"
+          },
+          "admissions": {
+            "items": {
+              "$ref": "#/components/schemas/Admission"
+            },
+            "type": "array",
+            "title": "Admissions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student",
+          "admissions"
+        ],
+        "title": "StudentRecords"
+      },
+      "User": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "institution_admin",
+              "institution_operator",
+              "aicte_admin",
+              "student",
+              "verifier",
+              "auditor"
+            ],
+            "title": "Role"
+          },
+          "institution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution Id"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "demo": {
+            "type": "boolean",
+            "title": "Demo",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "role"
+        ],
+        "title": "User"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ValidationIssue": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "batch_id": {
+            "type": "string",
+            "title": "Batch Id"
+          },
+          "row_number": {
+            "type": "integer",
+            "title": "Row Number"
+          },
+          "rule_code": {
+            "$ref": "#/components/schemas/RuleCode"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "review",
+              "info"
+            ],
+            "title": "Severity"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details",
+            "default": {}
+          },
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "batch_id",
+          "row_number",
+          "rule_code",
+          "severity",
+          "message"
+        ],
+        "title": "ValidationIssue"
+      },
+      "WebhookAck": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "handled": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "WebhookAck"
+      }
+    }
+  }
+}

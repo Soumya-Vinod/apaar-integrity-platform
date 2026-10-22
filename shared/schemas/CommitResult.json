@@ -1,0 +1,43 @@
+{
+  "properties": {
+    "batch_id": {
+      "title": "Batch Id",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "uploaded",
+        "mapped",
+        "validated",
+        "committed",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "rows_committed": {
+      "title": "Rows Committed",
+      "type": "integer"
+    },
+    "rows_rejected": {
+      "title": "Rows Rejected",
+      "type": "integer"
+    },
+    "review_cases_created": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Review Cases Created",
+      "type": "array"
+    }
+  },
+  "required": [
+    "batch_id",
+    "status",
+    "rows_committed",
+    "rows_rejected",
+    "review_cases_created"
+  ],
+  "title": "CommitResult",
+  "type": "object"
+}
