@@ -1,0 +1,24 @@
+# Sam: replace the placeholder handles below with real GitHub usernames.
+# Later rules take precedence, so specific router files come after backend/.
+
+/engine/                                  @dev-a
+/backend/                                 @dev-b
+/supabase/                                @dev-b
+/shared/                                  @dev-b
+/backend/app/routers/integrity.py         @dev-a
+/backend/app/routers/blind_match.py       @dev-a
+/datagen/                                 @dev-c
+/reports/                                 @dev-c
+/backend/app/routers/reports.py           @dev-c
+/backend/app/routers/certificates.py      @dev-c
+/frontend/src/pages/institution/          @dev-d
+/frontend/src/pages/aicte/                @dev-d
+/frontend/src/pages/blindmatch/           @dev-d
+/frontend/src/components/                 @dev-d
+/bot/                                     @dev-e
+/frontend/src/pages/student/              @dev-e
+/frontend/src/pages/verifier/             @dev-e
+/backend/app/routers/credentials.py       @dev-e
+/backend/app/routers/students.py          @dev-e
+/backend/app/routers/webhooks.py          @dev-e
+/deck/                                    @presenter
