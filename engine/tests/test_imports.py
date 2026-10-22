@@ -1,0 +1,25 @@
+# Owner: Dev A
+import importlib
+
+import pytest
+
+MODULES = [
+    "engine",
+    "engine.types",
+    "engine.blind_match",
+    "engine.blind_match.encoder",
+    "engine.blind_match.linkage",
+    "engine.signals",
+    "engine.signals.rules",
+    "engine.anomaly",
+    "engine.anomaly.isolation",
+    "engine.scoring",
+    "engine.scoring.integrity",
+    "engine.eval",
+    "engine.eval.harness",
+]
+
+
+@pytest.mark.parametrize("name", MODULES)
+def test_module_imports(name: str) -> None:
+    assert importlib.import_module(name) is not None
