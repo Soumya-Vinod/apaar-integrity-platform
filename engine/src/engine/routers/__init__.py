@@ -80,3 +80,125 @@ def post_signals(body: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, 
         for s in signals
     ]
 
+
+@router.post("/anomaly")
+def post_anomaly(
+    body: dict[str, Any] | list[dict[str, Any]],
+) -> dict[str, Any] | list[dict[str, Any]]:
+    """Standalone in-memory ML anomaly detection endpoint."""
+    from fastapi import HTTPException
+
+    from engine.anomaly.service import AnomalyDetectionService
+
+    if not isinstance(body, (list, dict)):
+        raise HTTPException(status_code=400, detail="Request body must be a dict or list.")
+
+    if not body:
+        return []
+
+    is_single = False
+    if isinstance(body, list):
+        items: list[dict[str, Any]] = body
+    else:
+        if "institutions" in body and isinstance(body["institutions"], list):
+            items = body["institutions"]
+        elif "features" in body and isinstance(body["features"], list):
+            items = body["features"]
+        else:
+            items = [body]
+            is_single = True
+
+    if not items:
+        return []
+
+    service = AnomalyDetectionService()
+    try:
+        results = service.fit_predict(items)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Anomaly detection failed: {exc}") from exc
+
+    serialized = [
+        {
+            "institution_id": r.institution_id,
+            "score": r.score,
+            "prediction": r.prediction,
+            "top_features": r.top_features,
+            "feature_vector": r.feature_vector,
+        }
+        for r in results
+    ]
+
+    return serialized[0] if is_single and serialized else serialized
+
+
+@router.post("/integrity-score")
+def post_integrity_score(
+    body: dict[str, Any] | list[dict[str, Any]],
+) -> dict[str, Any] | list[dict[str, Any]]:
+    """Standalone in-memory Institution Integrity Score endpoint."""
+    from fastapi import HTTPException
+
+    from engine.scoring.service import IntegrityScoringService
+
+    if not isinstance(body, (list, dict)) or not body:
+        raise HTTPException(status_code=400, detail="Institution data cannot be empty.")
+
+    if isinstance(body, list):
+        service = IntegrityScoringService()
+        return [
+            {
+                "institution_id": s.institution_id,
+                "score": s.score,
+                "components": s.components,
+                "risk_level": s.risk_level,
+                "generated_at": s.generated_at.isoformat(),
+                "signals": [
+                    {
+                        "signal_id": sig.signal_id,
+                        "institution_id": sig.institution_id,
+                        "signal_name": sig.signal_name,
+                        "severity": sig.severity,
+                        "score": sig.score,
+                        "evidence": sig.evidence,
+                        "description": sig.description,
+                        "created_at": sig.created_at.isoformat(),
+                    }
+                    for sig in s.signals
+                ],
+            }
+            for s in service.calculate_batch(body)
+        ]
+
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Request body must be a dict or list.")
+
+    if not body:
+        raise HTTPException(status_code=400, detail="Institution data cannot be empty.")
+
+    service = IntegrityScoringService()
+    try:
+        score_res = service.calculate_from_data(body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Scoring calculation failed: {exc}") from exc
+
+    return {
+        "institution_id": score_res.institution_id,
+        "score": score_res.score,
+        "components": score_res.components,
+        "risk_level": score_res.risk_level,
+        "generated_at": score_res.generated_at.isoformat(),
+        "signals": [
+            {
+                "signal_id": sig.signal_id,
+                "institution_id": sig.institution_id,
+                "signal_name": sig.signal_name,
+                "severity": sig.severity,
+                "score": sig.score,
+                "evidence": sig.evidence,
+                "description": sig.description,
+                "created_at": sig.created_at.isoformat(),
+            }
+            for sig in score_res.signals
+        ],
+    }
+
