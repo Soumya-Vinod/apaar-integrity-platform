@@ -19,8 +19,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "reserved_categories": {"obc", "sc", "st", "ews"},
     "valid_categories": {"general", "ews", "obc", "sc", "st"},
     "valid_seat_pools": {"regular", "tfw", "fn_oci_pio", "nri"},
-    "min_age": 16,
-    "max_age": 35,
+    "min_age": 15,
+    "max_age": 60,
     "default_approved_intake": 60,
 }
 
@@ -109,13 +109,14 @@ def eligibility_signal(
 
         # 1. Qualifying Exam Percentage
         pct = row.get("qualifying_exam_pct")
-        cat = str(row.get("category", "general")).strip().lower()
+        cat_raw = row.get("category")
+        cat = cat_raw.strip().lower() if isinstance(cat_raw, str) and cat_raw.strip() else None
         if pct is not None:
             try:
                 pct_float = float(pct)
                 req_pct = (
                     cfg["min_pct_reserved"]
-                    if cat in cfg["reserved_categories"]
+                    if cat and cat in cfg["reserved_categories"]
                     else cfg["min_pct_general"]
                 )
                 prog_req = cfg.get("programme_min_pct", {}).get(prog)
@@ -123,6 +124,7 @@ def eligibility_signal(
                     req_pct = max(req_pct, float(prog_req))
 
                 if pct_float < req_pct:
+                    display_cat = cat or "general"
                     violations_by_inst.setdefault(inst_id, []).append(
                         {
                             "violated_rule": "QUALIFYING_BELOW_NORM",
@@ -132,7 +134,7 @@ def eligibility_signal(
                             "actual_value": f"{pct_float}%",
                             "reason": (
                                 f"Qualifying percentage {pct_float}% is below "
-                                f"AICTE minimum {req_pct}% for category '{cat}'"
+                                f"AICTE minimum {req_pct}% for category '{display_cat}'"
                             ),
                         }
                     )
@@ -140,7 +142,7 @@ def eligibility_signal(
                 pass
 
         # 2. Admission Category Validation
-        if cat and cat not in cfg["valid_categories"]:
+        if cat is not None and cat not in cfg["valid_categories"]:
             violations_by_inst.setdefault(inst_id, []).append(
                 {
                     "violated_rule": "INVALID_CATEGORY",

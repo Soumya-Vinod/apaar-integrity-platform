@@ -14,7 +14,7 @@ class SignalSeverity:
     LOW: SeverityLevel = "info"
     MEDIUM: SeverityLevel = "warning"
     HIGH: SeverityLevel = "review"
-    CRITICAL: SeverityLevel = "error"
+    CRITICAL: SeverityLevel = "review"  # Engine severities are capped at review (never error)
 
     @classmethod
     def calculate(
@@ -25,19 +25,11 @@ class SignalSeverity:
     ) -> SeverityLevel:
         """Determine signal severity based on rule importance, affected students, and impact.
 
-        - Critical: high importance + large student count or institution-wide impact.
-        - High (Review): high importance or moderate count of affected students.
-        - Medium (Warning): standard rule violation.
-        - Low (Info): informational or borderline observation.
+        Engine severities are capped at 'review' so error rows are never excluded from commit.
         """
         importance = base_importance.lower()
 
-        if importance in ("critical", "error"):
-            return cls.CRITICAL if affected_count > 3 or institution_wide else cls.HIGH
-
-        if importance in ("high", "review"):
-            if institution_wide or affected_count >= 5:
-                return cls.CRITICAL
+        if importance in ("critical", "error", "high", "review"):
             return cls.HIGH
 
         if importance in ("medium", "warning"):

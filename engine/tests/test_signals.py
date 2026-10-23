@@ -626,12 +626,224 @@ def test_malformed_and_empty_inputs() -> None:
 
 
 def test_signal_severity_scaling() -> None:
-    """Verify SignalSeverity calculations scale with importance and affected counts."""
+    """Verify SignalSeverity calculations scale with importance and are capped at review."""
     assert SignalSeverity.calculate("low", affected_count=1) == "info"
     assert SignalSeverity.calculate("medium", affected_count=2) == "warning"
     assert SignalSeverity.calculate("medium", affected_count=15) == "review"
     assert SignalSeverity.calculate("high", affected_count=1) == "review"
-    assert SignalSeverity.calculate("high", affected_count=6) == "error"
+    # Capped at review (never error; error rows get excluded from commit)
+    assert SignalSeverity.calculate("high", affected_count=6) == "review"
     assert SignalSeverity.calculate("critical", affected_count=1) == "review"
-    assert SignalSeverity.calculate("critical", affected_count=5) == "error"
-    assert SignalSeverity.calculate("high", institution_wide=True) == "error"
+    assert SignalSeverity.calculate("critical", affected_count=5) == "review"
+    assert SignalSeverity.calculate("high", institution_wide=True) == "review"
+
+
+# ==============================================================================
+# 8. Upload Hook Contract (shared/engine-hooks.md)
+# ==============================================================================
+
+
+def test_engine_hooks_contract_eligibility() -> None:
+    """Verify eligibility hook matches shared/engine-hooks.md contract specifications."""
+    # Row dicts as specified in Section 2
+    rows = [
+        {
+            "row_number": 1,
+            "upload_date": "2026-10-23",
+            "institution_aicte_code": "1-9999003",
+            "programme_code": "UG-CSE",
+            "academic_year": "2026-27",
+            "student_name": "Aarav Sharma",
+            "dob": "2008-03-14",
+            "gender": "male",
+            "category": "general",
+            "pwd": False,
+            "apaar_id": None,
+            "apaar_opt_out": False,
+            "provisional_id": "PROV001",
+            "nationality": "INDIAN",
+            "oci_status": False,
+            "fn_status": False,
+            "nri_category": False,
+            "seat_pool": "regular",
+            "admission_mode": "cap",
+            "admission_date": "2026-08-15",
+            "qualifying_exam": "HSC",
+            "qualifying_exam_pct": 42.0,  # Below general norm (45.0)
+            "domicile_state": "Maharashtra",
+            "contact_phone": "hmac:abc123phone",
+            "contact_email": "hmac:abc123email",
+            "guardian_name": "Rakesh Sharma",
+        },
+        {
+            "row_number": 2,
+            "upload_date": "2026-10-23",
+            "institution_aicte_code": "1-9999003",
+            "programme_code": "UG-CSE",
+            "academic_year": "2026-27",
+            "student_name": "Priya Patel",
+            "dob": "2007-11-20",
+            "gender": "female",
+            "category": "sc",
+            "pwd": None,
+            "apaar_id": "123456789012",
+            "apaar_opt_out": False,
+            "provisional_id": None,
+            "nationality": "INDIAN",
+            "oci_status": None,
+            "fn_status": None,
+            "nri_category": None,
+            "seat_pool": "regular",
+            "admission_mode": "cap",
+            "admission_date": "2026-08-20",
+            "qualifying_exam": "HSC",
+            "qualifying_exam_pct": 38.5,  # Below SC/reserved norm (40.0)
+            "domicile_state": "Gujarat",
+            "contact_phone": None,
+            "contact_email": None,
+            "guardian_name": None,
+        },
+        {
+            "row_number": 3,
+            "upload_date": "2026-10-23",
+            "institution_aicte_code": "1-9999003",
+            "programme_code": "UG-CSE",
+            "academic_year": "2026-27",
+            "student_name": "Rahul Verma",
+            "dob": "2008-01-10",
+            "gender": "male",
+            "category": "general",
+            "pwd": False,
+            "apaar_id": None,
+            "apaar_opt_out": False,
+            "provisional_id": "PROV003",
+            "nationality": "INDIAN",
+            "oci_status": False,
+            "fn_status": False,
+            "nri_category": False,
+            "seat_pool": "regular",
+            "admission_mode": "cap",
+            "admission_date": "2026-08-25",
+            "qualifying_exam": "HSC",
+            "qualifying_exam_pct": 72.0,  # Eligible
+            "domicile_state": "Delhi",
+            "contact_phone": "hmac:xyzphone",
+            "contact_email": "hmac:xyzemail",
+            "guardian_name": "Suresh Verma",
+        },
+        {
+            "row_number": 4,
+            "upload_date": "2026-10-23",
+            "institution_aicte_code": "1-9999003",
+            "programme_code": "UG-CSE",
+            "academic_year": "2026-27",
+            "student_name": "Sneha Roy",
+            "dob": "2008-05-05",
+            "gender": "female",
+            "category": None,  # None category must never become "none"
+            "pwd": None,
+            "apaar_id": None,
+            "apaar_opt_out": False,
+            "provisional_id": None,
+            "nationality": "INDIAN",
+            "oci_status": None,
+            "fn_status": None,
+            "nri_category": None,
+            "seat_pool": None,
+            "admission_mode": None,
+            "admission_date": None,
+            "qualifying_exam": None,
+            "qualifying_exam_pct": None,  # None percentage tolerated
+            "domicile_state": None,
+            "contact_phone": None,
+            "contact_email": None,
+            "guardian_name": None,
+        },
+    ]
+
+    signals = eligibility(rows)
+    assert len(signals) == 2
+
+    # Section 3: Check code, severity, and evidence shape
+    for s in signals:
+        assert s.code == "QUALIFYING_BELOW_NORM"
+        assert s.severity in ("warning", "review")  # Never error
+        assert "row_numbers" in s.evidence
+        assert isinstance(s.evidence["row_numbers"], list)
+        assert len(s.evidence["row_numbers"]) > 0
+        assert all(isinstance(rn, int) for rn in s.evidence["row_numbers"])
+        assert "reason" in s.evidence
+        assert isinstance(s.evidence["reason"], str)
+        # Ensure no PII in reason
+        for pii in ["Aarav", "Sharma", "Priya", "Patel"]:
+            assert pii not in s.evidence["reason"]
+
+    flagged_rows = {rn for s in signals for rn in s.evidence["row_numbers"]}
+    assert flagged_rows == {1, 2}
+
+
+def test_engine_hooks_contract_backdating() -> None:
+    """Verify backdating hook matches shared/engine-hooks.md contract specifications."""
+    rows = [
+        {
+            "row_number": 10,
+            "upload_date": "2026-10-23",
+            "admission_date": "2026-08-01",  # 83 days earlier (> 30 days)
+            "institution_aicte_code": "1-1234567",
+        },
+        {
+            "row_number": 11,
+            "upload_date": "2026-10-23",
+            "admission_date": "2026-10-10",  # 13 days earlier (<= 30 days)
+            "institution_aicte_code": "1-1234567",
+        },
+        {
+            "row_number": 12,
+            "upload_date": "2026-10-23",
+            "admission_date": None,  # Missing date tolerated
+            "institution_aicte_code": "1-1234567",
+        },
+    ]
+
+    signals = backdating(rows)
+    assert len(signals) == 1
+
+    s = signals[0]
+    assert s.code == "BACKDATED_ENTRY"
+    assert s.severity in ("warning", "review")  # Never error
+    assert s.evidence["row_numbers"] == [10]
+    assert "reason" in s.evidence
+    assert "83-day" in s.evidence["reason"]
+
+
+def test_engine_hooks_contract_blind_match_encoder() -> None:
+    """Verify Blind Match encode_identity and dice match shared/engine-hooks.md."""
+    import pytest
+
+    from engine.blind_match.encoder import dice, encode_identity
+
+    fields_a = {
+        "student_name": "Aarav Sharma",
+        "dob": "2008-03-14",
+        "guardian_name": "Rakesh Sharma",
+    }
+    secret = b"my-super-secret-key-for-test-32b"
+
+    enc_a = encode_identity(fields_a, secret, bits=1024, k=20)
+    assert isinstance(enc_a, bytes)
+    assert len(enc_a) == 1024 // 8  # Exactly 128 bytes
+
+    # Determinism
+    enc_a_repeat = encode_identity(fields_a, secret, bits=1024, k=20)
+    assert enc_a == enc_a_repeat
+    assert dice(enc_a, enc_a_repeat) == 1.0
+
+    # Changes when secret changes
+    enc_different_secret = encode_identity(
+        fields_a, b"different-secret-key-32b-length", bits=1024, k=20
+    )
+    assert enc_a != enc_different_secret
+
+    # Raises ValueError when secret is empty or missing
+    with pytest.raises(ValueError, match="secret"):
+        encode_identity(fields_a, b"", bits=1024, k=20)
