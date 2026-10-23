@@ -58,3 +58,25 @@ def post_blind_match(body: dict[str, Any] | list[dict[str, Any]]) -> list[dict[s
         }
         for m in matches
     ]
+
+
+@router.post("/signals")
+def post_signals(body: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Standalone in-memory integrity signals endpoint."""
+    from engine.signals import execute_signals
+
+    signals = execute_signals(body)
+    return [
+        {
+            "signal_id": s.signal_id,
+            "institution_id": s.institution_id,
+            "signal_name": s.signal_name,
+            "severity": s.severity,
+            "score": s.score,
+            "evidence": s.evidence,
+            "description": s.description,
+            "created_at": s.created_at.isoformat(),
+        }
+        for s in signals
+    ]
+
