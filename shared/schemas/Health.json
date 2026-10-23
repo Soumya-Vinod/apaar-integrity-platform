@@ -27,6 +27,24 @@
     "version": {
       "title": "Version",
       "type": "string"
+    },
+    "db": {
+      "default": "unconfigured",
+      "enum": [
+        "ok",
+        "unconfigured",
+        "error"
+      ],
+      "title": "Db",
+      "type": "string"
+    },
+    "real_domains": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Real Domains",
+      "type": "array"
     }
   },
   "required": [

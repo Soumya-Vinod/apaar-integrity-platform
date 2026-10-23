@@ -23,6 +23,11 @@
       "title": "Rows Rejected",
       "type": "integer"
     },
+    "rows_skipped_existing": {
+      "default": 0,
+      "title": "Rows Skipped Existing",
+      "type": "integer"
+    },
     "review_cases_created": {
       "items": {
         "type": "string"
