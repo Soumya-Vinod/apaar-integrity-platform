@@ -85,7 +85,8 @@ def test_integrity_score_pydantic_model():
     assert isinstance(score.generated_at, datetime)
 
 
-def test_post_blind_match_api_exact_apaar(client):
+def test_post_blind_match_api_exact_apaar(client, settings_override):
+    settings_override(blind_match_secret="test-secret-key-32b-length-here!")
     payload = {
         "records": [
             {
@@ -116,7 +117,8 @@ def test_post_blind_match_api_exact_apaar(client):
     assert "apaar_id" in match["matched_fields"]
 
 
-def test_post_blind_match_api_fuzzy_matching(client):
+def test_post_blind_match_api_fuzzy_matching(client, settings_override):
+    settings_override(blind_match_secret="test-secret-key-32b-length-here!")
     payload = {
         "records": [
             {
@@ -155,7 +157,8 @@ def test_post_blind_match_api_fuzzy_matching(client):
     assert data[0]["similarity_score"] >= 0.85
 
 
-def test_post_blind_match_api_direct_list(client):
+def test_post_blind_match_api_direct_list(client, settings_override):
+    settings_override(blind_match_secret="test-secret-key-32b-length-here!")
     records = [
         {
             "student_id": "stud-x",
@@ -537,8 +540,9 @@ def test_engine_upload_hooks_findings():
                 "gender": "male",
                 "category": "general",
                 "pwd": False,
-                "apaar_id": "111122223336",
-                "apaar_opt_out": False,
+                "apaar_id": None,
+                "apaar_opt_out": True,
+                "provisional_id": "PROV-1-001-0006",
                 "nationality": "Indian",
                 "oci_status": False,
                 "fn_status": False,

@@ -21,7 +21,9 @@ SHARED = Path(__file__).resolve().parents[2] / "shared"
 
 
 def _write(path: Path, data: dict) -> None:
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    # newline="\n" keeps contracts LF on Windows too.
+    text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def public_models() -> dict[str, type[BaseModel]]:

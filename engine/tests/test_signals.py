@@ -788,18 +788,21 @@ def test_engine_hooks_contract_backdating() -> None:
         {
             "row_number": 10,
             "upload_date": "2026-10-23",
-            "admission_date": "2026-08-01",  # 83 days earlier (> 30 days)
+            "academic_year": "2026-27",
+            "admission_date": "2026-04-15",  # March-May (before July-September window)
             "institution_aicte_code": "1-1234567",
         },
         {
             "row_number": 11,
             "upload_date": "2026-10-23",
-            "admission_date": "2026-10-10",  # 13 days earlier (<= 30 days)
+            "academic_year": "2026-27",
+            "admission_date": "2026-08-10",  # Normal July-September admission
             "institution_aicte_code": "1-1234567",
         },
         {
             "row_number": 12,
             "upload_date": "2026-10-23",
+            "academic_year": "2026-27",
             "admission_date": None,  # Missing date tolerated
             "institution_aicte_code": "1-1234567",
         },
@@ -813,7 +816,7 @@ def test_engine_hooks_contract_backdating() -> None:
     assert s.severity in ("warning", "review")  # Never error
     assert s.evidence["row_numbers"] == [10]
     assert "reason" in s.evidence
-    assert "83-day" in s.evidence["reason"]
+    assert "before the July" in s.evidence["reason"]
 
 
 def test_engine_hooks_contract_blind_match_encoder() -> None:

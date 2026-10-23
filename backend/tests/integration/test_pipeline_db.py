@@ -7,6 +7,7 @@ import csv
 import io
 import subprocess
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -17,17 +18,22 @@ from tests.integration.conftest import AICTE, as_institution
 
 pytestmark = pytest.mark.db
 BACKEND = Path(__file__).resolve().parents[2]
+FIRST = "Aarav Ananya Arjun Diya Ishaan Kavya Rohan Saanvi Vihaan Zara Kabir Meera".split()
+LAST = "Sharma Patel Nair Iyer Gupta Reddy Khan Joshi Rao Singh Das Mehta Verma".split()
 
 
 def rows_for(world, inst, programme, count, start=1, **overrides):
+    """Distinct names and dates of birth per n, so no Blind Match finding appears by accident."""
     rows = []
     for n in range(start, start + count):
+        first, last = FIRST[n % len(FIRST)], LAST[(n // len(FIRST)) % len(LAST)]
+        dob = date(2007, 1, 1) + timedelta(days=(n * 53) % 900)  # 53 and 900 are coprime
         row = {
             "institution_aicte_code": inst["code"],
             "programme_code": programme,
             "academic_year": "2026-27",
-            "student_name": f"Test Student {n}",
-            "dob": "2008-03-14",
+            "student_name": f"{first} {last}",
+            "dob": dob.isoformat(),
             "gender": "female" if n % 2 else "male",
             "category": "general",
             "pwd": "false",
@@ -46,7 +52,7 @@ def rows_for(world, inst, programme, count, start=1, **overrides):
             "domicile_state": "Test State",
             "contact_phone": f"+9198{n:08d}",
             "contact_email": f"student{n}@example.com",
-            "guardian_name": f"Test Guardian {n}",
+            "guardian_name": f"{FIRST[(n * 7) % len(FIRST)]} {last}",
         }
         row.update(overrides)
         rows.append(row)

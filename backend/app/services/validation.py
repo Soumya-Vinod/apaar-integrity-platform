@@ -8,12 +8,14 @@ IDs in evidence are masked.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
 
 from app.core.rule_codes import RULE_SEVERITY, RuleCode
@@ -75,6 +77,10 @@ class ValidationContext:
     # None skips DUP_CROSS_INSTITUTION (pure tests).
     cross_institution_lookup: Callable[[list[str]], dict[str, str]] | None = None
     run_engine_hooks: bool = True
+    # Blind Match: Dice at or above match_threshold is a FUZZY_MATCH_CANDIDATE; DOB blocks
+    # larger than blind_match_max_block are truncated.
+    match_threshold: float = 0.85
+    blind_match_max_block: int = 200
 
 
 def _age_on(dob: date, on: date) -> int:
@@ -276,85 +282,176 @@ def check_batch(rows: list[NormalizedRow], ctx: ValidationContext) -> list[Findi
 
 
 # ---------------------------------------------------------------------------- Dev A hooks
-def _engine_rows(rows: list[NormalizedRow]) -> list[dict[str, Any]]:
-    return [{"row_number": r.row_number, **r.to_json()["values"]} for r in rows]
+# The contract for everything below is shared/engine-hooks.md.
+SIGNAL_CODES = {
+    "QUALIFYING_BELOW_NORM": RuleCode.QUALIFYING_BELOW_NORM,
+    "BACKDATED_ENTRY": RuleCode.BACKDATED_ENTRY,
+}
+SIGNAL_SEVERITIES = ("warning", "review")
+# Fixed by the backend so every encoding is 128 bytes; k is left to the engine's default.
+BLOOM_BITS = 1024
+_REASON_MAX = 200
 
 
-def _signal_findings(signals: list, code: RuleCode) -> list[Finding]:
-    """Engine signals point at rows through evidence['row_numbers']."""
-    out = []
+def _engine_rows(rows: list[NormalizedRow], upload_date: str) -> list[dict[str, Any]]:
+    """Row dicts for the engine: row_number, upload_date and every template column, with
+    dates as ISO strings and blanks as None."""
+    return [
+        {"row_number": r.row_number, "upload_date": upload_date, **r.to_json()["values"]}
+        for r in rows
+    ]
+
+
+def _field(signal: Any, name: str) -> Any:
+    return signal.get(name) if isinstance(signal, dict) else getattr(signal, name, None)
+
+
+def _signal_findings(
+    signals: Any, row_numbers: set[int], ignored: Counter[str]
+) -> dict[tuple[int, RuleCode], Finding]:
+    """One finding per (row, code) from signals that follow the contract; everything else is
+    counted in ``ignored`` by reason."""
+    out: dict[tuple[int, RuleCode], Finding] = {}
+    if not isinstance(signals, list):
+        ignored["result_not_a_list"] += 1
+        return out
     for signal in signals:
-        evidence = dict(getattr(signal, "evidence", {}) or {})
-        numbers = evidence.pop("row_numbers", [])
-        for number in numbers:
-            out.append(Finding(int(number), code, f"Engine signal {signal.code}.", evidence))
+        code = SIGNAL_CODES.get(_field(signal, "code"))
+        evidence = _field(signal, "evidence")
+        numbers = evidence.get("row_numbers") if isinstance(evidence, dict) else None
+        if code is None:
+            ignored["unknown_code"] += 1
+        elif _field(signal, "severity") not in SIGNAL_SEVERITIES:
+            ignored["unknown_severity"] += 1
+        elif not isinstance(numbers, list) or not numbers:
+            ignored["missing_row_numbers"] += 1
+        else:
+            reason = evidence.get("reason")
+            reason = reason[:_REASON_MAX] if isinstance(reason, str) and reason else None
+            for number in numbers:
+                if type(number) is not int or number not in row_numbers:
+                    ignored["unknown_row_number"] += 1
+                    continue
+                out.setdefault(
+                    (number, code),
+                    Finding(
+                        number,
+                        code,
+                        reason or f"Engine signal {code.value}.",
+                        {"reason": reason} if reason else {},
+                    ),
+                )
     return out
 
 
-def engine_findings(rows: list[NormalizedRow], blind_match_secret: str = "") -> list[Finding]:
-    """FUZZY_MATCH_CANDIDATE, BACKDATED_ENTRY and QUALIFYING_BELOW_NORM come from Dev A's
-    engine. Each hook is skipped silently while the engine raises NotImplementedError."""
-    out: list[Finding] = []
-    engine_rows = _engine_rows(rows)
+def _run_signal_hook(
+    name: str, engine_rows: list[dict[str, Any]], row_numbers: set[int], ignored: Counter[str]
+) -> dict[tuple[int, RuleCode], Finding]:
     try:
-        from engine.signals.rules import backdating
+        from engine.signals import rules
 
-        out += _signal_findings(backdating(engine_rows), RuleCode.BACKDATED_ENTRY)
+        signals = getattr(rules, name)(engine_rows)
     except NotImplementedError:
-        pass
-    try:
-        from engine.signals.rules import eligibility
+        return {}
+    except Exception as exc:  # noqa: BLE001 - an engine bug must not break an upload
+        ignored[f"{name}_raised_{type(exc).__name__}"] += 1
+        return {}
+    return _signal_findings(signals, row_numbers, ignored)
 
-        out += _signal_findings(eligibility(engine_rows), RuleCode.QUALIFYING_BELOW_NORM)
-    except NotImplementedError:
-        pass
-    try:
-        out += _fuzzy_findings(rows, blind_match_secret)
-    except NotImplementedError:
-        pass
+
+def engine_findings(
+    rows: list[NormalizedRow],
+    blind_match_secret: str = "",
+    *,
+    match_threshold: float = 0.85,
+    max_block: int = 200,
+) -> list[Finding]:
+    """QUALIFYING_BELOW_NORM and BACKDATED_ENTRY come from Dev A's rule signals,
+    FUZZY_MATCH_CANDIDATE from Blind Match encodings compared here. A hook that raises
+    NotImplementedError is skipped quietly; any other engine failure or non-contract output
+    is skipped and logged once per batch, without row contents."""
+    ignored: Counter[str] = Counter()
+    engine_rows = _engine_rows(rows, datetime.now(UTC).date().isoformat())
+    row_numbers = {r.row_number for r in rows}
+    signal_findings: dict[tuple[int, RuleCode], Finding] = {}
+    for name in ("eligibility", "backdating"):
+        for key, finding in _run_signal_hook(name, engine_rows, row_numbers, ignored).items():
+            signal_findings.setdefault(key, finding)
+    out = list(signal_findings.values())
+    if not blind_match_secret:
+        log.warning("BLIND_MATCH_SECRET is empty; Blind Match skipped for this batch")
+    else:
+        try:
+            out += _fuzzy_findings(rows, blind_match_secret, match_threshold, max_block, ignored)
+        except NotImplementedError:
+            pass
+        except Exception as exc:  # noqa: BLE001 - an engine bug must not break an upload
+            ignored[f"blind_match_raised_{type(exc).__name__}"] += 1
+    if ignored:
+        log.warning("Engine hooks ignored output in a %d-row batch: %s", len(rows), dict(ignored))
     return out
 
 
-def _fuzzy_findings(rows: list[NormalizedRow], secret: str) -> list[Finding]:
-    if not secret:
-        return []
-    import hashlib
+def dob_block_key(dob: date, secret: str) -> str:
+    """Blind Match block: HMAC-SHA256 of the full ISO date of birth, keyed with the secret."""
+    return hmac.new(secret.encode(), f"dob:{dob.isoformat()}".encode(), hashlib.sha256).hexdigest()
 
-    from engine.blind_match.encoder import encode_identity
-    from engine.blind_match.linkage import find_candidates
-    from engine.types import EncodedRecord
 
-    records = []
+def _fuzzy_findings(
+    rows: list[NormalizedRow],
+    secret: str,
+    threshold: float,
+    max_block: int,
+    ignored: Counter[str],
+) -> list[Finding]:
+    """Compare encodings only within a DOB block, never two rows with valid APAAR IDs."""
+    from engine.blind_match.encoder import dice, encode_identity
+
+    blocks: dict[str, list[NormalizedRow]] = defaultdict(list)
     for row in rows:
-        v = row.values
-        if not v.get("student_name") or not v.get("dob"):
-            continue
-        fields = {
-            "student_name": v["student_name"],
-            "dob": v["dob"].isoformat(),
-            "guardian_name": v.get("guardian_name") or "",
-        }
-        records.append(
-            EncodedRecord(
-                record_id=str(row.row_number),
-                institution_id="batch",
-                bloom=encode_identity(fields, secret.encode()),
-                birth_year_hash=hashlib.sha256(str(v["dob"].year).encode()).hexdigest(),
-                apaar_id=v.get("apaar_id"),
-            )
+        if row.values.get("student_name") and isinstance(row.values.get("dob"), date):
+            blocks[dob_block_key(row.values["dob"], secret)].append(row)
+    truncated = [len(b) for b in blocks.values() if len(b) > max_block]
+    if truncated:
+        log.warning(
+            "Blind Match truncated %d blocks to %d rows (largest had %d)",
+            len(truncated),
+            max_block,
+            max(truncated),
         )
+
+    key = secret.encode()
     out = []
-    for candidate in find_candidates(records, threshold=0.85):
-        later = max(int(candidate.record_a), int(candidate.record_b))
-        earlier = min(int(candidate.record_a), int(candidate.record_b))
-        out.append(
-            Finding(
-                later,
-                RuleCode.FUZZY_MATCH_CANDIDATE,
-                "Blind Match found a likely duplicate identity in this batch.",
-                {"other_row": earlier, "dice": round(candidate.dice, 3)},
-            )
-        )
+    for block in blocks.values():
+        if len(block) < 2:
+            continue
+        members = []
+        for row in block[:max_block]:
+            v = row.values
+            fields = {"student_name": v["student_name"], "dob": v["dob"].isoformat()}
+            if v.get("guardian_name"):
+                fields["guardian_name"] = v["guardian_name"]
+            bloom = encode_identity(fields, key, bits=BLOOM_BITS)
+            if not isinstance(bloom, bytes) or len(bloom) != BLOOM_BITS // 8:
+                ignored["bad_encoding"] += 1
+                continue
+            apaar = v.get("apaar_id")
+            valid = bool(apaar and _APAAR_RE.fullmatch(apaar))
+            members.append((row.row_number, bloom, valid, apaar or v.get("provisional_id")))
+        for i, (n_a, bloom_a, valid_a, id_a) in enumerate(members):
+            for n_b, bloom_b, valid_b, id_b in members[i + 1 :]:
+                if (valid_a and valid_b) or (id_a and id_a == id_b):
+                    continue
+                score = dice(bloom_a, bloom_b)
+                if score >= threshold:
+                    out.append(
+                        Finding(
+                            max(n_a, n_b),
+                            RuleCode.FUZZY_MATCH_CANDIDATE,
+                            "Blind Match found a likely duplicate identity in this batch.",
+                            {"other_row": min(n_a, n_b), "dice": round(score, 3)},
+                        )
+                    )
     return out
 
 
@@ -364,7 +461,12 @@ def validate_rows(
     findings = [f for row in rows for f in check_row(row, ctx)]
     findings += check_batch(rows, ctx)
     if ctx.run_engine_hooks:
-        findings += engine_findings(rows, blind_match_secret)
+        findings += engine_findings(
+            rows,
+            blind_match_secret,
+            match_threshold=ctx.match_threshold,
+            max_block=ctx.blind_match_max_block,
+        )
     return sorted(findings, key=lambda f: (f.row_number, f.rule_code.value))
 
 

@@ -9,12 +9,12 @@ What the backend upload hook sends to Dev A's engine and what it accepts back. T
 | --- | --- | --- |
 | `engine.signals.rules.eligibility(rows)` | `rows`: list of row dicts (section 2) | `list[Signal]` (section 3) |
 | `engine.signals.rules.backdating(rows)` | the same `rows` list | `list[Signal]` (section 3) |
-| `engine.blind_match.encoder.encode_identity(fields, secret, bits=1024, k=20)` | `fields`: `dict[str, str]`; `secret`: `bytes`; `bits` and `k` passed as keywords | `bytes` of length `bits // 8` |
+| `engine.blind_match.encoder.encode_identity(fields, secret, bits=1024)` | `fields`: `dict[str, str]`; `secret`: `bytes`; `bits` passed as a keyword. `k` is not passed. | `bytes` of length `bits // 8` (128) |
 | `engine.blind_match.encoder.dice(a, b)` | two encodings from `encode_identity` | `float` from 0 to 1 |
 
 **Blocking and pairing for Blind Match are done by the backend, not by `engine.blind_match.linkage.find_candidates`.** The hook does not call `find_candidates` and does not build `EncodedRecord` objects. Dev A may keep `find_candidates` for engine-side analytics, but upload findings never depend on it.
 
-The hook calls each function once per batch (`encode_identity` once per row that can be blocked). Engine functions must be pure: no network, no database, no writing files, no logging of row contents.
+The hook calls `eligibility` and `backdating` once per batch, `encode_identity` once per row that has a block partner (section 4), and `dice` once per compared pair. Engine functions must be pure: no network, no database, no writing files, no logging of row contents.
 
 ## 2. Row dicts passed to `eligibility` and `backdating`
 
@@ -74,23 +74,24 @@ Rules for engines:
 
 ## 4. Blind Match inputs
 
-For each row with both `student_name` and a valid `dob`, the backend calls:
+For each row with both `student_name` and a valid `dob` that shares its DOB block with at least one other row, the backend calls:
 
 ```python
 encode_identity(
     {"student_name": "Aarav Sharma", "dob": "2008-03-14", "guardian_name": "Rakesh Sharma"},
     secret,          # BLIND_MATCH_SECRET as UTF-8 bytes, always passed explicitly
     bits=1024,
-    k=20,
 )
 ```
+
+- `bits` is fixed at 1024 by the backend, so every encoding is 128 bytes. `k` (hash positions per bigram) is chosen by the engine: the backend never passes it, so the engine's own default applies. Changing that default changes every encoding, so keep it stable within a deployment.
 
 - Identity fields: `student_name`, `dob` (ISO) and `guardian_name`. `guardian_name` is left out of `fields` when it is blank. All values are `str`, never `None`. The engine does its own normalisation (case, accents, punctuation).
 - `secret` is always `BLIND_MATCH_SECRET` from backend settings, passed explicitly. Engines must not read environment variables or fall back to a default key. If `BLIND_MATCH_SECRET` is empty the backend skips Blind Match for the batch and logs one warning; `encode_identity` is never called with an empty key.
 - Blocking (backend): rows are grouped by `HMAC-SHA256(BLIND_MATCH_SECRET, "dob:" + dob_iso)`, so only rows with exactly the same date of birth are compared. Each block is capped at `BLIND_MATCH_MAX_BLOCK` rows (default 200); extra rows are left out and the backend logs that a block was truncated.
 - Pairing (backend): within a block every pair is compared with `dice`, except pairs where both rows have a valid 12-digit APAAR ID (different IDs are different people; equal IDs are already `DUP_IN_BATCH`) and pairs with the same APAAR or provisional ID.
 - Threshold: a pair with `dice(a, b) >= MATCH_THRESHOLD` (setting `match_threshold`, default `0.85`) raises `FUZZY_MATCH_CANDIDATE` on the later row, with evidence `{"other_row": <earlier row_number>, "dice": <rounded to 3 places>}`.
-- `encode_identity` must return `bytes` of length `bits // 8`. A row whose encoding has another type or length is left out of matching and counted in the batch warning.
+- `encode_identity` must return `bytes` of length `bits // 8` (128). A row whose encoding has another type or length is left out of matching and counted in the batch warning.
 
 ## 5. Testing against this contract
 

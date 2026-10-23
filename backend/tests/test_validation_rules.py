@@ -1,13 +1,17 @@
 # Owner: Dev B
-from datetime import date
+import random
+import time
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
 from app.core.rule_codes import RuleCode
-from app.services.ingestion import TEMPLATE_COLUMNS, normalize_row
+from app.services.ingestion import TEMPLATE_COLUMNS, NormalizedRow, normalize_row
 from app.services.validation import (
     ValidationContext,
     count_findings,
+    dob_block_key,
+    engine_findings,
     error_rows,
     validate_rows,
 )
@@ -47,13 +51,13 @@ def row(n: int = 1, **overrides: str):
     return normalize_row(raw, IDENTITY, n, SECRET)
 
 
-def ctx(**kwargs) -> ValidationContext:
+def ctx(run_engine_hooks: bool = False, **kwargs) -> ValidationContext:
     defaults = {
         "cutoff": date(2026, 9, 30),
         "shared_contact_threshold": 5,
         "institution_code": "1-9999003",
         "programme_codes": {"UG-CSE", "UG-CE"},
-        "run_engine_hooks": False,
+        "run_engine_hooks": run_engine_hooks,
     }
     return ValidationContext(**{**defaults, **kwargs})
 
@@ -241,6 +245,212 @@ def test_engine_signal_rows_become_findings(monkeypatch):
     )
     findings = validate_rows([row()], ctx(run_engine_hooks=True))
     assert [(f.row_number, f.rule_code) for f in findings] == [(1, RuleCode.BACKDATED_ENTRY)]
+
+
+def test_engine_rows_follow_the_contract(monkeypatch):
+    import engine.signals.rules as rules
+
+    seen = []
+    monkeypatch.setattr(rules, "eligibility", lambda rows: seen.extend(rows) or [])
+    validate_rows([row(1), row(2, apaar_id="999912340002", qualifying_exam_pct="")], ctx(True))
+    today = datetime.now(UTC).date().isoformat()
+    assert [r["row_number"] for r in seen] == [1, 2]
+    assert set(seen[0]) == {"row_number", "upload_date", *TEMPLATE_COLUMNS}
+    assert {r["upload_date"] for r in seen} == {today}
+    assert (seen[0]["dob"], seen[0]["qualifying_exam_pct"]) == ("2008-03-14", 92.4)
+    assert seen[1]["qualifying_exam_pct"] is None
+    assert seen[0]["contact_phone"].startswith("hmac:")
+
+
+def test_fake_engine_signals_become_findings(monkeypatch):
+    import engine.signals.rules as rules
+
+    from tests import fake_engine
+
+    monkeypatch.setattr(rules, "eligibility", fake_engine.eligibility)
+    monkeypatch.setattr(rules, "backdating", fake_engine.backdating)
+    rows = [
+        row(1),
+        row(2, apaar_id="999912340002", qualifying_exam_pct="40"),
+        row(3, apaar_id="999912340003", admission_date="2024-07-01", dob="2006-03-14"),
+    ]
+    findings = validate_rows(rows, ctx(True))
+    assert [(f.row_number, f.rule_code) for f in findings] == [
+        (2, RuleCode.QUALIFYING_BELOW_NORM),
+        (3, RuleCode.BACKDATED_ENTRY),
+    ]
+    assert findings[0].severity == "warning" and findings[1].severity == "review"
+    assert findings[0].evidence == {"reason": "Qualifying percentage below the AICTE minimum."}
+
+
+def test_non_contract_signals_are_ignored_and_logged(monkeypatch, caplog):
+    import engine.signals.rules as rules
+    from engine.types import Signal
+
+    good = {"row_numbers": [1], "reason": "ok"}
+    monkeypatch.setattr(
+        rules,
+        "eligibility",
+        lambda rows: [
+            Signal("SOMETHING_ELSE", "x", "warning", good),
+            Signal("QUALIFYING_BELOW_NORM", "x", "error", good),
+            Signal("QUALIFYING_BELOW_NORM", "x", "warning", {"reason": "no rows"}),
+            Signal("QUALIFYING_BELOW_NORM", "x", "warning", {"row_numbers": [99, "1"]}),
+            {"code": "QUALIFYING_BELOW_NORM", "severity": "warning", "evidence": good},
+            Signal("QUALIFYING_BELOW_NORM", "x", "warning", good),
+        ],
+    )
+    with caplog.at_level("WARNING", logger="app.services.validation"):
+        findings = validate_rows([row()], ctx(True))
+    assert [(f.row_number, f.rule_code) for f in findings] == [(1, RuleCode.QUALIFYING_BELOW_NORM)]
+    warnings = [r.getMessage() for r in caplog.records if "ignored" in r.getMessage()]
+    assert len(warnings) == 1
+    for reason in ("unknown_code", "unknown_severity", "missing_row_numbers"):
+        assert reason in warnings[0]
+    assert "'unknown_row_number': 2" in warnings[0]
+    assert "Aarav" not in caplog.text and "999912340001" not in caplog.text
+
+
+def test_engine_exception_does_not_break_validation(monkeypatch):
+    import engine.blind_match.encoder as encoder
+    import engine.signals.rules as rules
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("engine bug")
+
+    monkeypatch.setattr(rules, "eligibility", boom)
+    monkeypatch.setattr(rules, "backdating", lambda rows: "not a list")
+    monkeypatch.setattr(encoder, "encode_identity", boom)
+    rows = [row(1, apaar_id="123")]
+    findings = validate_rows(rows, ctx(True), blind_match_secret="s")
+    assert {f.rule_code for f in findings} == {RuleCode.APAAR_FORMAT}
+
+
+# ---------------------------------------------------------------- Blind Match hook
+BM_SECRET = "test-blind-match-secret"
+
+
+def fuzzy(findings):
+    return sorted(
+        (f.row_number, f.evidence["other_row"])
+        for f in findings
+        if f.rule_code is RuleCode.FUZZY_MATCH_CANDIDATE
+    )
+
+
+def opted(n: int, **overrides: str):
+    values = {"apaar_id": "", "apaar_opt_out": "true", "provisional_id": f"P-{n}", **overrides}
+    return row(n, **values)
+
+
+def test_blind_match_matches_typo_variant_with_same_dob(fake_blind_match):
+    rows = [row(1), opted(2, student_name="Aarav Sharme"), opted(3, student_name="Priya Nair")]
+    findings = validate_rows(rows, ctx(True), blind_match_secret=BM_SECRET)
+    assert fuzzy(findings) == [(2, 1)]
+    match = next(f for f in findings if f.rule_code is RuleCode.FUZZY_MATCH_CANDIDATE)
+    assert match.severity == "review" and 0.85 <= match.evidence["dice"] <= 1
+
+
+def test_blind_match_blocks_same_name_different_dob(fake_blind_match):
+    rows = [row(1), opted(2, dob="2008-03-15")]
+    assert fuzzy(validate_rows(rows, ctx(True), blind_match_secret=BM_SECRET)) == []
+
+
+def test_blind_match_never_pairs_distinct_valid_apaar_ids(fake_blind_match):
+    rows = [row(1), row(2, apaar_id="999912340002")]
+    assert fuzzy(validate_rows(rows, ctx(True), blind_match_secret=BM_SECRET)) == []
+
+
+def test_blind_match_skips_same_id_pairs(fake_blind_match):
+    # Same APAAR (valid or not) or same provisional ID is DUP_IN_BATCH, not a fuzzy match.
+    for rows in (
+        [row(1), row(2)],
+        [row(1, apaar_id="123"), row(2, apaar_id="123")],
+        [opted(1), opted(2, provisional_id="P-1")],
+    ):
+        assert fuzzy(validate_rows(rows, ctx(True), blind_match_secret=BM_SECRET)) == []
+
+
+def test_blind_match_uses_threshold(fake_blind_match):
+    rows = [row(1), opted(2, student_name="Aarav Sharme")]
+    assert fuzzy(validate_rows(rows, ctx(True), blind_match_secret="k")) == [(2, 1)]
+    strict = ctx(True, match_threshold=0.999)
+    assert fuzzy(validate_rows(rows, strict, blind_match_secret="k")) == []
+
+
+def test_blind_match_passes_bits_and_leaves_k_to_the_engine(monkeypatch):
+    import engine.blind_match.encoder as encoder
+
+    calls = []
+
+    def spy(fields, secret, **kwargs):
+        calls.append((fields, secret, kwargs))
+        return bytes(128)
+
+    monkeypatch.setattr(encoder, "encode_identity", spy)
+    validate_rows([row(1), opted(2)], ctx(True), blind_match_secret=BM_SECRET)
+    assert len(calls) == 2
+    assert all(kwargs == {"bits": 1024} for _, _, kwargs in calls)
+    assert calls[0][0] == {
+        "student_name": "Aarav Sharma",
+        "dob": "2008-03-14",
+        "guardian_name": "Rakesh Sharma",
+    }
+    assert calls[0][1] == BM_SECRET.encode()
+
+
+def test_blind_match_skipped_without_secret(monkeypatch, caplog):
+    import engine.blind_match.encoder as encoder
+
+    calls = []
+    monkeypatch.setattr(encoder, "encode_identity", lambda *a, **k: calls.append(a))
+    with caplog.at_level("WARNING", logger="app.services.validation"):
+        validate_rows([row(1), opted(2)], ctx(True))
+    assert calls == []
+    assert "BLIND_MATCH_SECRET is empty" in caplog.text
+
+
+def test_blind_match_block_key_is_keyed_full_dob():
+    assert dob_block_key(date(2008, 3, 14), "a") == dob_block_key(date(2008, 3, 14), "a")
+    assert dob_block_key(date(2008, 3, 14), "a") != dob_block_key(date(2008, 3, 15), "a")
+    assert dob_block_key(date(2008, 3, 14), "a") != dob_block_key(date(2008, 3, 14), "b")
+
+
+def test_blind_match_truncates_large_blocks(fake_blind_match, caplog):
+    rows = [opted(n) for n in range(1, 6)]
+    with caplog.at_level("WARNING", logger="app.services.validation"):
+        findings = validate_rows(
+            rows, ctx(True, blind_match_max_block=3), blind_match_secret=BM_SECRET
+        )
+    assert {f.evidence["other_row"] for f in findings if f.evidence.get("other_row")} <= {1, 2}
+    assert max(f.row_number for f in findings if "other_row" in f.evidence) == 3
+    assert "truncated 1 blocks to 3 rows" in caplog.text
+
+
+def test_blind_match_20000_rows_is_fast(fake_blind_match):
+    rng = random.Random(7)
+    first = "Aarav Ananya Arjun Diya Ishaan Kavya Rohan Saanvi Vihaan Zara Dev Meera".split()
+    last = "Sharma Patel Nair Iyer Gupta Reddy Khan Joshi Rao Singh Das Mehta".split()
+    start = date(2006, 1, 1)
+    rows = [
+        NormalizedRow(
+            n,
+            {
+                "student_name": f"{rng.choice(first)} {rng.choice(last)} {n}",
+                "dob": start + timedelta(days=rng.randint(0, 3 * 365)),
+                "guardian_name": f"{rng.choice(first)} {rng.choice(last)}",
+                # No APAAR IDs: every pair in a block is compared (worst case).
+                "apaar_id": None,
+                "provisional_id": f"P-{n}",
+            },
+        )
+        for n in range(1, 20001)
+    ]
+    started = time.perf_counter()
+    engine_findings(rows, BM_SECRET)
+    elapsed = time.perf_counter() - started
+    print(f"Blind Match hook, 20000 rows: {elapsed:.2f}s")
+    assert elapsed < 10
 
 
 def test_error_rows_and_counts():

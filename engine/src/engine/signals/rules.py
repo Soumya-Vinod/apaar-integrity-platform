@@ -7,6 +7,7 @@ signals implemented in engine.signals.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from engine.signals.backdated import _parse_date, backdated_signal
@@ -106,8 +107,42 @@ def backdating(admissions: list[Row]) -> list[Signal]:
             if not adm_date or not upload_date:
                 continue
 
-            delay = (upload_date - adm_date).days
-            if delay > 30:
+            academic_year_raw = r.get("academic_year")
+            start_year: int | None = None
+            if academic_year_raw and isinstance(academic_year_raw, str):
+                import re
+
+                m = re.match(r"^(\d{4})", academic_year_raw.strip())
+                if m:
+                    start_year = int(m.group(1))
+
+            if start_year is None and upload_date:
+                start_year = upload_date.year
+            if start_year is None:
+                start_year = adm_date.year
+
+            # In AICTE admissions (and datagen's anomaly catalogue), regular admissions
+            # occur in July–September (window opens July 1). Backdated entries are planted
+            # by moving admission date to March–May (months before the window), or entered
+            # from prior years. Clean institutions submit admissions after the window closes
+            # (July–September admissions uploaded in October), which is normal.
+            window_start = date(start_year, 7, 1)
+            is_backdated = False
+            reason = ""
+
+            if adm_date < window_start:
+                is_backdated = True
+                reason = (
+                    f"Admission date {adm_date.isoformat()} is before the July–September "
+                    f"admission window for academic year {start_year}."
+                )
+            elif (upload_date - adm_date).days > 180:
+                delay = (upload_date - adm_date).days
+                is_backdated = True
+                reason = f"Admission entered with excessive delay ({delay} days) before upload."
+
+            if is_backdated:
+                delay = (upload_date - adm_date).days
                 signals.append(
                     Signal(
                         code="BACKDATED_ENTRY",
@@ -118,13 +153,11 @@ def backdating(admissions: list[Row]) -> list[Signal]:
                         ),
                         evidence={
                             "row_numbers": [row_num],
-                            "reason": (
-                                f"Admission entered with {delay}-day delay exceeding "
-                                "30-day reporting threshold."
-                            ),
+                            "reason": reason,
                             "delay": delay,
+                            "admission_date": adm_date.isoformat(),
                         },
-                        description=f"Admission entered {delay} days after stated admission date.",
+                        description=reason,
                     )
                 )
         return signals
