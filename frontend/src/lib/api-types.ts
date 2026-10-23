@@ -1374,18 +1374,12 @@ export interface components {
         };
         /** Body_upload_batch_batches_post */
         Body_upload_batch_batches_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_corrections_batches__batch_id__corrections_post */
         Body_upload_corrections_batches__batch_id__corrections_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Certificate */
@@ -2274,6 +2268,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /** ValidationIssue */
         ValidationIssue: {

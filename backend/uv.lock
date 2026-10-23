@@ -291,6 +291,7 @@ name = "engine"
 version = "0.1.0"
 source = { editable = "../engine" }
 dependencies = [
+    { name = "fastapi" },
     { name = "numpy" },
     { name = "rapidfuzz" },
     { name = "scikit-learn" },
@@ -298,6 +299,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "fastapi", specifier = ">=0.115.0" },
     { name = "numpy", specifier = ">=2.5.4" },
     { name = "rapidfuzz", specifier = ">=3.14.6" },
     { name = "scikit-learn", specifier = ">=1.9.1" },
@@ -305,6 +307,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "ruff", specifier = ">=0.17.1" },
 ]
