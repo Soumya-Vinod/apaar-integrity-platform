@@ -34,6 +34,11 @@ MODULES = [
     "engine.eval.harness",
     "engine.evaluation",
     "engine.evaluation.harness",
+    "engine.evaluation.metrics",
+    "engine.evaluation.benchmark",
+    "engine.evaluation.datasets",
+    "engine.evaluation.report",
+    "engine.evaluation.service",
     "engine.routers",
     "engine.config",
 ]
