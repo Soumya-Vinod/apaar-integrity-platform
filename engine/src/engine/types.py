@@ -83,7 +83,9 @@ class AnomalyResult:
 
     institution_id: str
     score: float
+    prediction: str = "normal"
     top_features: list[str] = field(default_factory=list)
+    feature_vector: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
