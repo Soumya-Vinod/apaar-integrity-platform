@@ -17,10 +17,13 @@ from app.core.rule_codes import RuleCode
 from app.core.security import scoped_institution
 from app.models.auth import User
 from app.services import audit_store
+from app.services import submission_windows as windows
 from app.services.ingestion import (
     NormalizedRow,
+    ParsedUpload,
     check_mapping,
     missing_required,
+    normalise_header,
     normalize_row,
     parse_upload,
     sanitize_raw,
@@ -66,6 +69,7 @@ def batch_out(row: dict[str, Any]) -> dict[str, Any]:
         "status": row["status"],
         "counts": row["counts"] or {},
         "created_at": row["created_at"],
+        "parent_batch_id": str(row["parent_batch_id"]) if row.get("parent_batch_id") else None,
     }
 
 
@@ -95,32 +99,64 @@ def load_batch(
 
 
 # ---------------------------------------------------------------------------- upload
+def upload_years(rows: list[dict[str, str]], mapping: dict[str, str]) -> set[str]:
+    """Academic years named in an uploaded file, read through the suggested mapping."""
+    headers = [h for h, target in mapping.items() if target == "academic_year"]
+    if not headers:
+        return set()
+    return {row.get(headers[0], "").strip() for row in rows} - {""}
+
+
+def _uploader_institution(user: User) -> str:
+    institution_id = scoped_institution(user)
+    if institution_id is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only institution users upload batches")
+    return institution_id
+
+
+def _parse(file_name: str, content: bytes, settings: Settings) -> ParsedUpload:
+    return parse_upload(
+        file_name, content, max_mb=settings.max_upload_mb, max_rows=settings.max_upload_rows
+    )
+
+
 def upload(
     conn: psycopg.Connection, user: User, file_name: str, content: bytes, settings: Settings
 ) -> tuple[dict[str, Any], bool]:
     """Store a new batch, or return the existing one for the same institution and file."""
-    institution_id = scoped_institution(user)
-    if institution_id is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only institution users upload batches")
-    secret = require_secret(settings)
-    parsed = parse_upload(
-        file_name, content, max_mb=settings.max_upload_mb, max_rows=settings.max_upload_rows
-    )
+    institution_id = _uploader_institution(user)
+    require_secret(settings)
+    parsed = _parse(file_name, content, settings)
     existing = conn.execute(
         "select * from public.batches where institution_id = %s and file_hash = %s",
         (institution_id, parsed.file_hash),
     ).fetchone()
     if existing is not None:
         return upload_result(existing, duplicate=True), True
+    batch = _create_batch(conn, user, institution_id, file_name, parsed, settings)
+    return upload_result(batch, duplicate=False), False
 
+
+def _create_batch(
+    conn: psycopg.Connection,
+    user: User,
+    institution_id: str,
+    file_name: str,
+    parsed: ParsedUpload,
+    settings: Settings,
+    parent_batch_id: str | None = None,
+) -> dict[str, Any]:
+    """Insert the batch and its sanitised rows; validate straight away when fully mapped."""
+    secret = require_secret(settings)
     suggestion = suggest_mapping(parsed.headers)
+    windows.ensure_open(conn, upload_years(parsed.rows, suggestion.mapping))
     raw = sanitize_raw(parsed.rows, suggestion.mapping, secret)
     batch = conn.execute(
         """
         insert into public.batches
           (institution_id, uploaded_by, file_name, file_hash, status, column_mapping, header,
-           counts, rows_total)
-        values (%s, %s, %s, %s, 'uploaded', %s, %s, %s, %s)
+           counts, rows_total, parent_batch_id)
+        values (%s, %s, %s, %s, 'uploaded', %s, %s, %s, %s, %s)
         returning *
         """,
         (
@@ -132,6 +168,7 @@ def upload(
             Jsonb(parsed.headers),
             Jsonb({"rows_total": len(raw)}),
             len(raw),
+            parent_batch_id,
         ),
     ).fetchone()
     conn.execute(
@@ -148,11 +185,12 @@ def upload(
         "batch.uploaded",
         "batch",
         batch["id"],
-        {"file_hash": parsed.file_hash, "rows": len(raw)},
+        {"file_hash": parsed.file_hash, "rows": len(raw)}
+        | ({"parent_batch_id": parent_batch_id} if parent_batch_id else {}),
     )
     if not suggestion.missing_required:
         batch = validate(conn, batch, settings, user)
-    return upload_result(batch, duplicate=False), False
+    return batch
 
 
 def apply_mapping(
@@ -349,7 +387,7 @@ def issues(conn: psycopg.Connection, batch_id: str, user: User) -> list[dict[str
     rows = conn.execute(
         """
         select id, batch_id, row_number, rule_code, severity::text as severity,
-               coalesce(message, '') as message, details, resolved
+               coalesce(message, '') as message, details, resolved, resolution_note, resolved_at
         from public.validation_issues where batch_id = %s order by row_number, rule_code
         """,
         (batch_id,),
@@ -544,9 +582,17 @@ def _overrun_case(
 
 
 def commit(
-    conn: psycopg.Connection, batch_id: str, user: User, settings: Settings
+    conn: psycopg.Connection,
+    batch_id: str,
+    user: User,
+    settings: Settings,
+    only_rows: set[int] | None = None,
 ) -> tuple[dict[str, Any], list[Event]]:
-    """Commit a validated batch inside the caller's transaction. Idempotent."""
+    """Commit a validated batch inside the caller's transaction. Idempotent.
+
+    ``only_rows`` limits the commit to those row numbers (corrections); every other row is
+    marked skipped.
+    """
     batch = load_batch(conn, batch_id, user, lock=True)
     if batch["status"] == "committed":
         return batch["commit_result"], []
@@ -563,7 +609,8 @@ def commit(
         rows, validation_context(conn, institution_id, settings), settings.blind_match_secret
     )
     errors = error_rows(findings)
-    good = [r for r in rows if r.row_number not in errors]
+    outside = set() if only_rows is None else {r.row_number for r in rows} - only_rows
+    good = [r for r in rows if r.row_number not in errors | outside]
 
     programmes = {
         r["code"]: str(r["id"])
@@ -573,6 +620,7 @@ def commit(
         ).fetchall()
     }
     years = sorted({r.values["academic_year"] for r in good})
+    windows.ensure_open(conn, years)
     pools = lock_pools(conn, institution_id, years)
     used = used_seats(conn, list(programmes.values()), years)
 
@@ -620,6 +668,7 @@ def commit(
     ]
     committed_numbers = {a["row_number"] for a in committed}
     skipped = {a["row_number"] for a in admissions} - committed_numbers
+    rejected = errors - outside
 
     # Seat Ledger: admissions are recorded and flagged, never dropped. Every row past the
     # approved seats of its pool gets INTAKE_OVERRUN, and each such pool one review case.
@@ -659,7 +708,11 @@ def commit(
         ]
         events.append(_overrun_case(conn, user, institution_id, key, evidence, created))
 
-    for f in [f for f in findings if f.rule_code is RuleCode.DUP_CROSS_INSTITUTION]:
+    for f in [
+        f
+        for f in findings
+        if f.rule_code is RuleCode.DUP_CROSS_INSTITUTION and f.row_number not in outside
+    ]:
         evidence = {
             "rule_code": f.rule_code.value,
             "batch_id": str(batch["id"]),
@@ -685,17 +738,20 @@ def commit(
     statuses = {
         r.row_number: "committed"
         if r.row_number in committed_numbers
-        else ("skipped" if r.row_number in skipped else "error")
+        else ("skipped" if r.row_number in skipped | outside else "error")
         for r in rows
     }
     _store_rows(conn, batch["id"], rows, statuses)
+    parent = batch.get("parent_batch_id")
     result = {
         "batch_id": str(batch["id"]),
         "status": "committed",
         "rows_committed": len(committed),
-        "rows_rejected": len(errors),
+        "rows_rejected": len(rejected),
         "rows_skipped_existing": len(skipped),
         "review_cases_created": created,
+        "parent_batch_id": str(parent) if parent else None,
+        "rows_not_matched": len(outside),
     }
     committed_at = datetime.now(UTC)
     _save_counts(
@@ -727,3 +783,212 @@ def commit(
         ),
     )
     return result, events
+
+
+# ---------------------------------------------------------------------------- corrections
+# A correction file may carry the original row number in one of these columns; otherwise
+# rows are matched to rejected rows by APAAR ID, provisional ID, or name and date of birth.
+SOURCE_ROW_HEADERS = ("source_row", "original_row", "original_row_number")
+
+
+def source_rows(parsed: ParsedUpload) -> dict[int, int]:
+    """Correction row number -> original row number, from a source_row column if present."""
+    header = next((h for h in parsed.headers if normalise_header(h) in SOURCE_ROW_HEADERS), None)
+    if header is None:
+        return {}
+    out = {}
+    for number, row in enumerate(parsed.rows, start=1):
+        try:
+            out[number] = int(str(row.get(header, "")).strip())
+        except ValueError:
+            continue
+    return out
+
+
+def _identity_keys(values: dict[str, Any]) -> set[tuple[str, ...]]:
+    keys: set[tuple[str, ...]] = set()
+    if values.get("apaar_id"):
+        keys.add(("apaar", str(values["apaar_id"])))
+    if values.get("provisional_id"):
+        keys.add(("provisional", str(values["provisional_id"])))
+    if values.get("student_name") and values.get("dob"):
+        keys.add(("name_dob", str(values["student_name"]).lower(), str(values["dob"])))
+    return keys
+
+
+def match_corrections(
+    rejected: dict[int, dict[str, Any]],
+    corrections: list[NormalizedRow],
+    sources: dict[int, int],
+) -> dict[int, int]:
+    """Correction row -> rejected row of the parent batch; each rejected row matches once."""
+    free = dict(rejected)
+    matched: dict[int, int] = {}
+    for row in corrections:
+        target = sources.get(row.row_number)
+        if target is None:
+            keys = _identity_keys(row.values)
+            target = next(
+                (n for n, values in sorted(free.items()) if keys & _identity_keys(values)), None
+            )
+        if target in free:
+            matched[row.row_number] = target
+            del free[target]
+    return matched
+
+
+def _rejected_rows(conn: psycopg.Connection, batch_id: Any) -> dict[int, dict[str, Any]]:
+    """Rows of a batch still rejected: status error with an unresolved error finding."""
+    rows = conn.execute(
+        """
+        select br.row_number, br.normalized
+        from public.batch_rows br
+        where br.batch_id = %s and br.status = 'error'
+          and exists (
+            select 1 from public.validation_issues vi
+            where vi.batch_id = br.batch_id and vi.row_number = br.row_number
+              and vi.severity = 'error' and not vi.resolved
+          )
+        order by br.row_number
+        """,
+        (batch_id,),
+    ).fetchall()
+    return {r["row_number"]: (r["normalized"] or {}).get("values", {}) for r in rows}
+
+
+def correct(
+    conn: psycopg.Connection,
+    parent_id: str,
+    user: User,
+    file_name: str,
+    content: bytes,
+    settings: Settings,
+) -> tuple[dict[str, Any], list[Event]]:
+    """Upload a corrected file for a committed batch's rejected rows and commit only those.
+
+    The file becomes a new batch linked through parent_batch_id. Rows that match no rejected
+    row are skipped (rows_not_matched). Fixed rows get their error findings in the parent
+    resolved. Uploading the same correction file again returns the first result.
+    """
+    parent = load_batch(conn, parent_id, user, lock=True)
+    institution_id = _uploader_institution(user)
+    if parent["status"] != "committed":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Commit the batch before uploading corrections"
+        )
+    secret = require_secret(settings)
+    parsed = _parse(file_name, content, settings)
+    existing = conn.execute(
+        "select * from public.batches where institution_id = %s and file_hash = %s",
+        (institution_id, parsed.file_hash),
+    ).fetchone()
+    if existing is not None:
+        if existing.get("parent_batch_id") == parent["id"] and existing["status"] == "committed":
+            return existing["commit_result"], []
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"This file was already uploaded as batch {existing['id']}"
+        )
+    rejected = _rejected_rows(conn, parent["id"])
+    if not rejected:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Batch has no rejected rows to correct")
+
+    child = _create_batch(
+        conn, user, institution_id, file_name, parsed, settings, parent_batch_id=str(parent["id"])
+    )
+    if child["status"] != "validated":
+        missing = missing_required(child["column_mapping"] or {})
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"Correction files must use the template headers; required columns missing: {missing}",
+        )
+    matched = match_corrections(rejected, _normalized(conn, child, secret), source_rows(parsed))
+    result, events = commit(conn, str(child["id"]), user, settings, only_rows=set(matched))
+
+    committed = {
+        r["row_number"]
+        for r in conn.execute(
+            "select row_number from public.batch_rows where batch_id = %s and status = 'committed'",
+            (child["id"],),
+        ).fetchall()
+    }
+    fixed = sorted(matched[n] for n in committed if n in matched)
+    if fixed:
+        conn.execute(
+            """
+            update public.validation_issues
+            set resolved = true, resolved_at = now(), resolution_note = %s
+            where batch_id = %s and row_number = any(%s) and severity = 'error' and not resolved
+            """,
+            (f"Corrected by batch {child['id']}", parent["id"], fixed),
+        )
+    audit_store.append_event(
+        conn,
+        user.id,
+        "batch.corrected",
+        "batch",
+        parent["id"],
+        {"correction_batch_id": str(child["id"]), "rows_fixed": len(fixed)},
+    )
+    return result, events
+
+
+# ---------------------------------------------------------------------------- issue resolution
+def check_resolvable(severity: str, user: User, batch_id: str) -> None:
+    """Errors: 409, fixed by a correction upload. Review findings: aicte_admin only."""
+    if severity == "error":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Errors are fixed by uploading a correction: POST /batches/{batch_id}/corrections",
+        )
+    if severity == "review" and user.role != "aicte_admin":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Only an aicte_admin resolves review findings"
+        )
+
+
+def resolve_issue(conn: psycopg.Connection, issue_id: int, note: str, user: User) -> dict[str, Any]:
+    """Mark a warning, info or review finding resolved with a note.
+
+    Warnings and info: institution_admin or aicte_admin. Review findings: aicte_admin only.
+    Errors are fixed by a correction upload, not resolved by hand.
+    """
+    row = conn.execute(
+        """
+        select vi.id, vi.batch_id, vi.row_number, vi.rule_code, vi.severity::text as severity,
+               coalesce(vi.message, '') as message, vi.details, vi.resolved, vi.resolution_note,
+               vi.resolved_at, b.institution_id
+        from public.validation_issues vi
+        join public.batches b on b.id = vi.batch_id
+        where vi.id = %s
+        for update of vi
+        """,
+        (issue_id,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Validation issue '{issue_id}' not found")
+    scoped_institution(user, str(row["institution_id"]))
+    check_resolvable(row["severity"], user, str(row["batch_id"]))
+    if not row["resolved"]:
+        updated = conn.execute(
+            """
+            update public.validation_issues
+            set resolved = true, resolved_by = %s, resolved_at = now(), resolution_note = %s
+            where id = %s returning resolved, resolution_note, resolved_at
+            """,
+            (as_uuid(user.id), note, issue_id),
+        ).fetchone()
+        row = {**row, **updated}
+        audit_store.append_event(
+            conn,
+            user.id,
+            "validation_issue.resolved",
+            "validation_issue",
+            str(issue_id),
+            {
+                "batch_id": str(row["batch_id"]),
+                "rule_code": row["rule_code"],
+                "severity": row["severity"],
+            },
+        )
+    out = {k: v for k, v in row.items() if k != "institution_id"}
+    return {**out, "batch_id": str(row["batch_id"])}

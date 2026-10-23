@@ -2,7 +2,8 @@
 """Fixtures for DB integration tests (RUN_DB_TESTS=1, DATABASE_URL in backend/.env).
 
 Every run creates two institutions with codes prefixed TEST-, works only on them, and
-deletes everything it created afterwards (audit events it appended included).
+deletes everything it created afterwards: audit events it appended and submission windows
+for the far-future TEST_YEARS included.
 """
 
 from __future__ import annotations
@@ -31,6 +32,8 @@ def pytest_collection_modifyitems(config, items):
 
 
 POOL_SPLIT = {"regular": 60, "tfw": 3, "fn_oci_pio": 3, "nri": 3}
+# Academic years only integration tests use, so their windows never touch real years.
+TEST_YEARS = ("2097-98", "2098-99")
 
 
 @pytest.fixture(scope="session")
@@ -56,20 +59,22 @@ def _make_institution(conn, run: str, suffix: str) -> dict:
         (code, f"Test Institute {suffix} {run}"),
     ).fetchone()
     programmes = {}
-    for programme in ("UG-CSE", "UG-CE"):
+    # UG-IT is used only by test_demo_flows_db, so test_pipeline_db sees untouched pools.
+    for programme in ("UG-CSE", "UG-CE", "UG-IT"):
         row = conn.execute(
             "insert into public.programmes (institution_id, code, name)"
             " values (%s, %s, %s) returning id",
             (inst["id"], programme, f"Test {programme}"),
         ).fetchone()
         programmes[programme] = str(row["id"])
-        for pool, seats in POOL_SPLIT.items():
-            conn.execute(
-                "insert into public.seat_pools"
-                " (programme_id, academic_year, pool, approved_seats, rule_version)"
-                " values (%s, '2026-27', %s, %s, 'TEST-v1')",
-                (row["id"], pool, seats),
-            )
+        for year in ("2026-27", *TEST_YEARS):
+            for pool, seats in POOL_SPLIT.items():
+                conn.execute(
+                    "insert into public.seat_pools"
+                    " (programme_id, academic_year, pool, approved_seats, rule_version)"
+                    " values (%s, %s, %s, %s, 'TEST-v1')",
+                    (row["id"], year, pool, seats),
+                )
     return {"id": str(inst["id"]), "code": code, "programmes": programmes}
 
 
@@ -127,12 +132,14 @@ def _cleanup(institution_ids: list[str], apaar_prefix: str, audit_start: int) ->
         conn.execute(
             "delete from public.institutions where id = any(%s::uuid[])", (institution_ids,)
         )
-        # Only this run's audit events, which sit at the tail of the chain.
-        entity_ids = [str(x) for x in batches + cases]
         conn.execute(
-            "delete from public.audit_events where id > %s and entity_id = any(%s)",
-            (audit_start, entity_ids),
+            "delete from public.submission_windows where academic_year = any(%s)",
+            (list(TEST_YEARS),),
         )
+        # This run's audit events sit at the tail of the chain (batches, cases, admissions,
+        # edit requests, windows, keys); removing the whole tail keeps the chain intact.
+        # Do not run the integration tests while another writer is using the database.
+        conn.execute("delete from public.audit_events where id > %s", (audit_start,))
 
 
 @pytest.fixture

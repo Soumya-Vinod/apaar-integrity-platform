@@ -21,146 +21,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/engine": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Engine
-         * @description Return engine metadata and configuration.
-         */
-        get: operations["get_engine_engine_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/engine/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Engine Health
-         * @description Return engine health and import status.
-         */
-        get: operations["get_engine_health_engine_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/engine/blind-match": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Blind Match
-         * @description Execute in-memory privacy-preserving blind match and exact APAAR duplicate detection.
-         */
-        post: operations["post_blind_match_engine_blind_match_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/engine/signals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Signals
-         * @description Execute rule-based integrity signals against institution data.
-         */
-        post: operations["post_signals_engine_signals_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/engine/anomaly": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Anomaly
-         * @description Execute in-memory ML anomaly detection across institutions.
-         */
-        post: operations["post_anomaly_engine_anomaly_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/engine/integrity-score": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Integrity Score
-         * @description Calculate in-memory Institution Integrity Score.
-         */
-        post: operations["post_integrity_score_engine_integrity_score_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/engine/evaluate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Evaluate
-         * @description Execute complete in-memory evaluation harness and benchmarking.
-         */
-        post: operations["post_evaluate_engine_evaluate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/me": {
         parameters: {
             query?: never;
@@ -229,6 +89,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/institutions/{institution_id}/api-keys/{key_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Api Key
+         * @description Revoke a key; requests sending it get 401 from then on. Revoking twice is a no-op.
+         */
+        post: operations["revoke_api_key_institutions__institution_id__api_keys__key_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/institutions/{institution_id}/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Webhook
+         * @description Set the URL that receives batch.committed (signed with X-Signature), or null to
+         *     remove it. Each call with a URL returns a new signing secret, shown once.
+         */
+        put: operations["set_webhook_institutions__institution_id__webhook_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/institutions/{institution_id}/seat-ledger": {
         parameters: {
             query?: never;
@@ -264,7 +165,8 @@ export interface paths {
          * @description Upload a CSV or XLSX of admissions; returns the batch and a suggested column mapping.
          *
          *     Re-uploading the same file for the same institution returns the existing batch with
-         *     HTTP 200 and duplicate_upload=true.
+         *     HTTP 200 and duplicate_upload=true. 409 SUBMISSION_WINDOW_CLOSED when the file names an
+         *     academic year whose submission window is not open. Accepts X-API-Key instead of user auth.
          */
         post: operations["upload_batch_batches_post"];
         delete?: never;
@@ -339,8 +241,56 @@ export interface paths {
         /**
          * Commit Batch
          * @description Commit valid rows to the Seat Ledger in one transaction. Idempotent.
+         *
+         *     409 SUBMISSION_WINDOW_CLOSED outside the academic year's window. Accepts X-API-Key.
          */
         post: operations["commit_batch_batches__batch_id__commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/batches/{batch_id}/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Corrections
+         * @description Upload a corrected file for the rows this committed batch rejected.
+         *
+         *     The file is stored as a new batch linked by parent_batch_id, re-validated, and only rows
+         *     matching a rejected row are committed: by a source_row column holding the original row
+         *     number, else by APAAR ID, provisional ID, or name and date of birth. Fixed rows have
+         *     their error findings in the original batch resolved.
+         */
+        post: operations["upload_corrections_batches__batch_id__corrections_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/validation-issues/{issue_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Issue
+         * @description Resolve a finding with a note. Warnings and info: institution_admin or aicte_admin.
+         *     Review findings: aicte_admin only. Errors (409) are fixed with a correction upload.
+         */
+        post: operations["resolve_issue_validation_issues__issue_id__resolve_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -393,8 +343,103 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Decide Edit Request */
+        /**
+         * Decide Edit Request
+         * @description Approve (and apply) or reject. Approving a 'withdrawal' request withdraws the
+         *     admission. Broadcasts edit_request.decided.
+         */
         post: operations["decide_edit_request_edit_requests__edit_request_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admissions/{admission_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw Admission
+         * @description Withdraw an admission (reason required) and release its seat in the Seat Ledger.
+         *
+         *     After the academic year's submission window closes or is locked this returns 409
+         *     SUBMISSION_WINDOW_CLOSED: file an edit request with field 'withdrawal' instead.
+         *     Broadcasts admission.status_changed.
+         */
+        post: operations["withdraw_admission_admissions__admission_id__withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/admissions/mark-no-response": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark No Response
+         * @description Set no_response on submitted admissions committed more than older_than_days ago.
+         */
+        post: operations["mark_no_response_admin_admissions_mark_no_response_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submission-windows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Windows
+         * @description Every academic year's window with its current state (not_open, open, closed, locked).
+         */
+        get: operations["list_windows_submission_windows_get"];
+        put?: never;
+        /**
+         * Set Window
+         * @description Create the window for an academic year, or move the dates of an unlocked one.
+         *
+         *     A locked window cannot be changed (409 SUBMISSION_WINDOW_CLOSED).
+         */
+        post: operations["set_window_submission_windows_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submission-windows/{window_id}/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lock Window
+         * @description Lock the window. From now on admission changes for that year need an approved edit
+         *     request. Locking an already locked window returns it unchanged.
+         */
+        post: operations["lock_window_submission_windows__window_id__lock_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -509,6 +554,27 @@ export interface paths {
          * @description SIMULATED APAAR registry lookup. Format check is real; existence is simulated.
          */
         post: operations["apaar_verify_integrations_apaar_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/student-responses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Student Response
+         * @description Record a student's confirm or dispute of an admission. Idempotent: the same response
+         *     again returns changed=false and broadcasts nothing.
+         */
+        post: operations["record_student_response_internal_student_responses_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -916,22 +982,6 @@ export interface components {
             /** Peer Median */
             peer_median: number;
         };
-        /**
-         * AnomalyRequest
-         * @description Request payload for POST /engine/anomaly.
-         */
-        AnomalyRequest: {
-            /** Institutions */
-            institutions?: {
-                [key: string]: unknown;
-            }[];
-            /** Features */
-            features?: {
-                [key: string]: unknown;
-            }[];
-        } & {
-            [key: string]: unknown;
-        };
         /** ApaarVerifyRequest */
         ApaarVerifyRequest: {
             /** Apaar Id */
@@ -984,6 +1034,18 @@ export interface components {
              */
             note: string;
         };
+        /** ApiKeyRevoked */
+        ApiKeyRevoked: {
+            /** Key Id */
+            key_id: string;
+            /** Institution Id */
+            institution_id: string;
+            /**
+             * Revoked At
+             * Format: date-time
+             */
+            revoked_at: string;
+        };
         /** AuditVerifyResult */
         AuditVerifyResult: {
             /** Ok */
@@ -1016,6 +1078,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Parent Batch Id
+             * @description Set on a correction batch: the batch whose rejected rows it fixes
+             */
+            parent_batch_id?: string | null;
         };
         /** BatchCounts */
         BatchCounts: {
@@ -1092,48 +1159,14 @@ export interface components {
             /** Review Case Id */
             review_case_id?: string | null;
         };
-        /**
-         * BlindMatchRequest
-         * @description Request payload for POST /engine/blind-match.
-         */
-        BlindMatchRequest: {
-            /** Records */
-            records: components["schemas"]["BlindMatchStudentInput"][];
-            /** Threshold */
-            threshold?: number | null;
-        };
-        /**
-         * BlindMatchStudentInput
-         * @description Input student record for blind match duplicate detection.
-         */
-        BlindMatchStudentInput: {
-            /** Student Id */
-            student_id: string;
-            /** Institution Id */
-            institution_id: string;
-            /** Student Name */
-            student_name: string;
-            /** Dob */
-            dob: string;
-            /**
-             * Father Name
-             * @default
-             */
-            father_name: string;
-            /**
-             * Mother Name
-             * @default
-             */
-            mother_name: string;
-            /** Apaar Id */
-            apaar_id?: string | null;
-        };
         /** Body_upload_batch_batches_post */
         Body_upload_batch_batches_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
+            file: string;
+        };
+        /** Body_upload_corrections_batches__batch_id__corrections_post */
+        Body_upload_corrections_batches__batch_id__corrections_post: {
+            /** File */
             file: string;
         };
         /** Certificate */
@@ -1182,6 +1215,17 @@ export interface components {
             rows_skipped_existing: number;
             /** Review Cases Created */
             review_cases_created: string[];
+            /**
+             * Parent Batch Id
+             * @description Set on a correction commit: the batch whose rejected rows it fixes
+             */
+            parent_batch_id?: string | null;
+            /**
+             * Rows Not Matched
+             * @description Correction rows that matched no rejected row of the parent batch
+             * @default 0
+             */
+            rows_not_matched: number;
         };
         /** Consent */
         Consent: {
@@ -1309,7 +1353,10 @@ export interface components {
         };
         /** EditRequestCreate */
         EditRequestCreate: {
-            /** Field */
+            /**
+             * Field
+             * @description admission_date, admission_mode, qualifying_exam_pct, student_name, dob, or withdrawal (new_value 'withdrawn'; approving it withdraws the admission)
+             */
             field: string;
             /** New Value */
             new_value: string;
@@ -1339,46 +1386,6 @@ export interface components {
             set_bits: number;
             /** Encoding B64 */
             encoding_b64: string;
-        };
-        /**
-         * EngineHealth
-         * @description Engine health status.
-         */
-        EngineHealth: {
-            /**
-             * Status
-             * @default ok
-             */
-            status: string;
-            /** Version */
-            version: string;
-            /**
-             * Engine Ok
-             * @default true
-             */
-            engine_ok: boolean;
-        };
-        /**
-         * EngineInfo
-         * @description Engine metadata and runtime parameters.
-         */
-        EngineInfo: {
-            /**
-             * Name
-             * @default Integrity Intelligence Engine
-             */
-            name: string;
-            /** Version */
-            version: string;
-            /**
-             * Status
-             * @default active
-             */
-            status: string;
-            /** Match Threshold */
-            match_threshold: number;
-            /** Model Version */
-            model_version: string;
         };
         /** EnrolmentReport */
         EnrolmentReport: {
@@ -1495,29 +1502,6 @@ export interface components {
             /** Top Signals */
             top_signals: string[];
         };
-        /**
-         * IntegrityScoreRequest
-         * @description Request payload for POST /engine/integrity-score.
-         */
-        IntegrityScoreRequest: {
-            /**
-             * Institution Id
-             * @default unknown
-             */
-            institution_id: string;
-            /** Signals */
-            signals?: components["schemas"]["Signal"][];
-            /** Anomaly Score */
-            anomaly_score?: number | null;
-            /** Blind Matches */
-            blind_matches?: components["schemas"]["MatchCase"][];
-            /** Weights */
-            weights?: {
-                [key: string]: unknown;
-            };
-        } & {
-            [key: string]: unknown;
-        };
         /** MappingRequest */
         MappingRequest: {
             /** Mapping */
@@ -1525,38 +1509,20 @@ export interface components {
                 [key: string]: string;
             };
         };
-        /**
-         * MatchCase
-         * @description Represents a potential duplicate between institutions.
-         */
-        MatchCase: {
-            /** Case Id */
-            case_id?: string;
-            /** Institution A */
-            institution_a: string;
-            /** Institution B */
-            institution_b: string;
-            /** Student A Id */
-            student_a_id: string;
-            /** Student B Id */
-            student_b_id: string;
-            /** Similarity Score */
-            similarity_score: number;
-            /** Confidence */
-            confidence: number;
-            /** Matched Fields */
-            matched_fields?: string[];
+        /** MarkNoResponseRequest */
+        MarkNoResponseRequest: {
             /**
-             * Status
-             * @default open
-             * @enum {string}
+             * Older Than Days
+             * @default 14
              */
-            status: "open" | "confirmed" | "dismissed" | "correction_requested";
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at?: string;
+            older_than_days: number;
+        };
+        /** MarkNoResponseResult */
+        MarkNoResponseResult: {
+            /** Marked */
+            marked: number;
+            /** Older Than Days */
+            older_than_days: number;
         };
         /** PoolLedger */
         PoolLedger: {
@@ -1618,6 +1584,11 @@ export interface components {
             key_id: string;
             /** Public Key B64 */
             public_key_b64: string;
+        };
+        /** ResolveIssueRequest */
+        ResolveIssueRequest: {
+            /** Note */
+            note: string;
         };
         /** ResolveRequest */
         ResolveRequest: {
@@ -1707,43 +1678,6 @@ export interface components {
             /** Programmes */
             programmes: components["schemas"]["ProgrammeLedger"][];
         };
-        /**
-         * Signal
-         * @description An integrity signal raised against an institution.
-         */
-        Signal: {
-            /** Signal Id */
-            signal_id?: string;
-            /** Institution Id */
-            institution_id: string;
-            /** Signal Name */
-            signal_name: string;
-            /**
-             * Severity
-             * @default warning
-             * @enum {string}
-             */
-            severity: "error" | "warning" | "review" | "info";
-            /**
-             * Score
-             * @default 0
-             */
-            score: number;
-            /** Evidence */
-            evidence?: {
-                [key: string]: unknown;
-            };
-            /**
-             * Description
-             * @default
-             */
-            description: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at?: string;
-        };
         /** SignalOut */
         SignalOut: {
             /** Code */
@@ -1757,36 +1691,6 @@ export interface components {
             evidence: {
                 [key: string]: unknown;
             };
-        };
-        /**
-         * SignalsRequest
-         * @description Request payload for POST /engine/signals.
-         */
-        SignalsRequest: {
-            /** Institution Id */
-            institution_id?: string | null;
-            /** Admissions */
-            admissions?: {
-                [key: string]: unknown;
-            }[];
-            /** Records */
-            records?: {
-                [key: string]: unknown;
-            }[];
-            /** Seat Pools */
-            seat_pools?: {
-                [key: string]: unknown;
-            }[];
-            /** Historical Stats */
-            historical_stats?: {
-                [key: string]: unknown;
-            }[];
-            /** Rules Config */
-            rules_config?: {
-                [key: string]: unknown;
-            };
-        } & {
-            [key: string]: unknown;
         };
         /** SsoMockRequest */
         SsoMockRequest: {
@@ -1846,6 +1750,94 @@ export interface components {
             /** Admissions */
             admissions: components["schemas"]["Admission"][];
         };
+        /** StudentResponseRequest */
+        StudentResponseRequest: {
+            /** Admission Id */
+            admission_id: string;
+            /**
+             * Response
+             * @enum {string}
+             */
+            response: "confirmed" | "disputed";
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "telegram" | "portal";
+        };
+        /** StudentResponseResult */
+        StudentResponseResult: {
+            /** Admission Id */
+            admission_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "submitted" | "student_confirmed" | "student_disputed" | "no_response" | "withdrawn";
+            /**
+             * Changed
+             * @description False when the same response was already recorded
+             */
+            changed: boolean;
+            /**
+             * Review Case Id
+             * @description The open dispute case for this admission, when there is one
+             */
+            review_case_id?: string | null;
+        };
+        /** SubmissionWindow */
+        SubmissionWindow: {
+            /** Id */
+            id: string;
+            /** Academic Year */
+            academic_year: string;
+            /**
+             * Opens At
+             * Format: date-time
+             */
+            opens_at: string;
+            /**
+             * Closes At
+             * Format: date-time
+             */
+            closes_at: string;
+            /** Locked At */
+            locked_at?: string | null;
+            /**
+             * State
+             * @description not_open before opens_at, open until closes_at, then closed; locked once an aicte_admin locks it
+             * @enum {string}
+             */
+            state: "not_open" | "open" | "closed" | "locked";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SubmissionWindowCreate */
+        SubmissionWindowCreate: {
+            /**
+             * Academic Year
+             * @example 2026-27
+             */
+            academic_year: string;
+            /**
+             * Opens At
+             * Format: date-time
+             */
+            opens_at: string;
+            /**
+             * Closes At
+             * Format: date-time
+             */
+            closes_at: string;
+        };
         /** User */
         User: {
             /** Id */
@@ -1873,6 +1865,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /** ValidationIssue */
         ValidationIssue: {
@@ -1902,6 +1898,10 @@ export interface components {
              * @default false
              */
             resolved: boolean;
+            /** Resolution Note */
+            resolution_note?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
         };
         /** WebhookAck */
         WebhookAck: {
@@ -1909,6 +1909,36 @@ export interface components {
             ok: boolean;
             /** Handled */
             handled?: string | null;
+        };
+        /** WebhookConfig */
+        WebhookConfig: {
+            /** Institution Id */
+            institution_id: string;
+            /** Webhook Url */
+            webhook_url?: string | null;
+            /**
+             * Secret
+             * @description HMAC-SHA256 signing secret for X-Signature. Shown once.
+             */
+            secret?: string | null;
+            /**
+             * Note
+             * @default The secret is shown once; setting the URL again rotates it.
+             */
+            note: string;
+        };
+        /** WebhookConfigRequest */
+        WebhookConfigRequest: {
+            /**
+             * Url
+             * @description Receives batch.committed; null removes the webhook
+             */
+            url?: string | null;
+        };
+        /** WithdrawRequest */
+        WithdrawRequest: {
+            /** Reason */
+            reason: string;
         };
     };
     responses: never;
@@ -1935,227 +1965,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
-                };
-            };
-        };
-    };
-    get_engine_engine_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EngineInfo"];
-                };
-            };
-        };
-    };
-    get_engine_health_engine_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EngineHealth"];
-                };
-            };
-        };
-    };
-    post_blind_match_engine_blind_match_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BlindMatchRequest"] | components["schemas"]["BlindMatchStudentInput"][];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchCase"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_signals_engine_signals_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SignalsRequest"] | {
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Signal"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_anomaly_engine_anomaly_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AnomalyRequest"] | {
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_integrity_score_engine_integrity_score_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["IntegrityScoreRequest"] | {
-                    [key: string]: unknown;
-                } | {
-                    [key: string]: unknown;
-                }[];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_evaluate_engine_evaluate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                } | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2296,6 +2105,81 @@ export interface operations {
             };
         };
     };
+    revoke_api_key_institutions__institution_id__api_keys__key_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path: {
+                institution_id: string;
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyRevoked"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_webhook_institutions__institution_id__webhook_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path: {
+                institution_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookConfig"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_seat_ledger_institutions__institution_id__seat_ledger_get: {
         parameters: {
             query?: {
@@ -2337,6 +2221,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Institution API key; replaces user auth when sent */
+                "x-api-key"?: string | null;
                 authorization?: string | null;
                 "x-demo-role"?: string | null;
                 "x-demo-institution"?: string | null;
@@ -2490,6 +2376,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Institution API key; replaces user auth when sent */
+                "x-api-key"?: string | null;
                 authorization?: string | null;
                 "x-demo-role"?: string | null;
                 "x-demo-institution"?: string | null;
@@ -2508,6 +2396,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommitResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_corrections_batches__batch_id__corrections_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Institution API key; replaces user auth when sent */
+                "x-api-key"?: string | null;
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_corrections_batches__batch_id__corrections_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommitResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_issue_validation_issues__issue_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path: {
+                issue_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveIssueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationIssue"];
                 };
             };
             /** @description Validation Error */
@@ -2627,6 +2595,187 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EditRequest"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_admission_admissions__admission_id__withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path: {
+                admission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WithdrawRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Admission"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_no_response_admin_admissions_mark_no_response_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkNoResponseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkNoResponseResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_windows_submission_windows_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionWindow"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_window_submission_windows_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmissionWindowCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionWindow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lock_window_submission_windows__window_id__lock_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path: {
+                window_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionWindow"];
                 };
             };
             /** @description Validation Error */
@@ -2840,6 +2989,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApaarVerifyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_student_response_internal_student_responses_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-internal-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentResponseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentResponseResult"];
                 };
             };
             /** @description Validation Error */
