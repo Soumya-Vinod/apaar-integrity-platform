@@ -39,7 +39,6 @@ MODULES = [
     "engine.evaluation.datasets",
     "engine.evaluation.report",
     "engine.evaluation.service",
-    "engine.routers",
     "engine.config",
 ]
 
