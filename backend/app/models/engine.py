@@ -68,3 +68,22 @@ class EngineHealth(BaseModel):
     status: str = "ok"
     version: str
     engine_ok: bool = True
+
+
+class BlindMatchStudentInput(BaseModel):
+    """Input student record for blind match duplicate detection."""
+
+    student_id: str
+    institution_id: str
+    student_name: str
+    dob: str
+    father_name: str = ""
+    mother_name: str = ""
+    apaar_id: str | None = None
+
+
+class BlindMatchRequest(BaseModel):
+    """Request payload for POST /engine/blind-match."""
+
+    records: list[BlindMatchStudentInput]
+    threshold: float | None = None

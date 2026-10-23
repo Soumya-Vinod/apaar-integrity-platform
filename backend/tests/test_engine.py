@@ -83,3 +83,95 @@ def test_integrity_score_pydantic_model():
     assert score.risk_level == "medium"
     assert len(score.signals) == 1
     assert isinstance(score.generated_at, datetime)
+
+
+def test_post_blind_match_api_exact_apaar(client):
+    payload = {
+        "records": [
+            {
+                "student_id": "stud-1",
+                "institution_id": "inst-1",
+                "student_name": "Aarav Sharma",
+                "dob": "2004-05-15",
+                "apaar_id": "999900001111",
+            },
+            {
+                "student_id": "stud-2",
+                "institution_id": "inst-2",
+                "student_name": "Aarav Sharma",
+                "dob": "2004-05-15",
+                "apaar_id": "999900001111",
+            },
+        ]
+    }
+    response = client.post("/engine/blind-match", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    match = data[0]
+    assert match["institution_a"] == "inst-1"
+    assert match["institution_b"] == "inst-2"
+    assert match["similarity_score"] == 1.0
+    assert match["confidence"] == 1.0
+    assert "apaar_id" in match["matched_fields"]
+
+
+def test_post_blind_match_api_fuzzy_matching(client):
+    payload = {
+        "records": [
+            {
+                "student_id": "stud-a",
+                "institution_id": "inst-1",
+                "student_name": "Priyanka Joshi",
+                "dob": "2004-07-20",
+                "father_name": "Kailash Joshi",
+                "mother_name": "Meena Joshi",
+            },
+            {
+                "student_id": "stud-b",
+                "institution_id": "inst-2",
+                "student_name": "Priyanka Joshi",
+                "dob": "2004-07-20",
+                "father_name": "Kailash Joshi",
+                "mother_name": "Meena Joshi",
+            },
+            {
+                "student_id": "stud-c",
+                "institution_id": "inst-3",
+                "student_name": "Harsh Patel",
+                "dob": "2004-07-20",
+                "father_name": "Nitin Patel",
+                "mother_name": "Rita Patel",
+            },
+        ],
+        "threshold": 0.85,
+    }
+    response = client.post("/engine/blind-match", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["student_a_id"] == "stud-a"
+    assert data[0]["student_b_id"] == "stud-b"
+    assert data[0]["similarity_score"] >= 0.85
+
+
+def test_post_blind_match_api_direct_list(client):
+    records = [
+        {
+            "student_id": "stud-x",
+            "institution_id": "inst-1",
+            "student_name": "Vikram Seth",
+            "dob": "2004-03-12",
+            "apaar_id": "999955554444",
+        },
+        {
+            "student_id": "stud-y",
+            "institution_id": "inst-2",
+            "student_name": "Vikram Seth",
+            "dob": "2004-03-12",
+            "apaar_id": "999955554444",
+        },
+    ]
+    response = client.post("/engine/blind-match", json=records)
+    assert response.status_code == 200
+    assert len(response.json()) == 1
