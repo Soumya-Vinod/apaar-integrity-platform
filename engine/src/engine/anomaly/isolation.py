@@ -3,15 +3,23 @@
 
 from __future__ import annotations
 
+from engine.anomaly.service import AnomalyDetectionService
 from engine.types import AnomalyResult, InstitutionFeatures
 
 
 def rank_institutions(features: list[InstitutionFeatures]) -> list[AnomalyResult]:
     """Rank institutions with an Isolation Forest, most anomalous first.
 
-    Intended algorithm: build a matrix from each institution's feature dict (fixed column
-    order, missing values as 0), standardise it, fit ``sklearn.ensemble.IsolationForest``
-    with a fixed random_state, map ``score_samples`` to a 0-1 anomaly score, and explain each
-    result with the features whose z-scores deviate most.
+    Builds a matrix from each institution's feature vector in deterministic
+    feature order, fits the Isolation Forest model, maps samples to a 0-1
+    anomaly score, explains results with z-score deviation, and returns
+    results sorted with the highest anomaly score first.
     """
-    raise NotImplementedError
+    if not features:
+        return []
+
+    service = AnomalyDetectionService()
+    results = service.fit_predict(features)
+    # Sort most anomalous first
+    results.sort(key=lambda r: r.score, reverse=True)
+    return results
