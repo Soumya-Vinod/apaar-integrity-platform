@@ -17,6 +17,10 @@ MODULES = [
     "engine.scoring.integrity",
     "engine.eval",
     "engine.eval.harness",
+    "engine.evaluation",
+    "engine.evaluation.harness",
+    "engine.routers",
+    "engine.config",
 ]
 
 
