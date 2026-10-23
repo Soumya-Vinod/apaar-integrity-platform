@@ -21,6 +21,7 @@ GET_ENDPOINTS = [
     ("/review-cases", "aicte_admin"),
     (f"/review-cases/{CASE}", "aicte_admin"),
     ("/audit/verify", "auditor"),
+    ("/submission-windows", "institution_operator"),
     ("/integrity/institutions", "aicte_admin"),
     (f"/integrity/institutions/{SHADOW}", "aicte_admin"),
     ("/blind-match/cases", "aicte_admin"),
