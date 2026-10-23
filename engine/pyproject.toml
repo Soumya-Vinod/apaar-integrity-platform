@@ -3,9 +3,6 @@ name = "engine"
 version = "0.1.0"
 description = "Integrity engine for the APAAR Integrity Platform: rule signals, anomaly ranking, Integrity Score and Blind Match."
 readme = "README.md"
-authors = [
-    { name = "SOUMYA VINOD", email = "goldenluvathena.01@gmail.com" }
-]
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.5.4",

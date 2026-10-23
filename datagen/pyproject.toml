@@ -3,9 +3,6 @@ name = "apaar-integrity-datagen"
 version = "0.1.0"
 description = "Synthetic admissions data with planted anomalies for the APAAR Integrity Platform."
 readme = "README.md"
-authors = [
-    { name = "SOUMYA VINOD", email = "goldenluvathena.01@gmail.com" }
-]
 requires-python = ">=3.12"
 dependencies = [
     "faker>=40.43.0",

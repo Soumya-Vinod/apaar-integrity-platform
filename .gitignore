@@ -40,3 +40,7 @@ Thumbs.db
 /.claude/
 /.agent/
 /.github/copilot-instructions.md
+/docs/prompts/
+/backend/scripts/.tamper_backup.json
+
+/.agents/
