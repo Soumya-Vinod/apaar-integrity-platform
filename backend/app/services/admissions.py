@@ -3,15 +3,18 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 import psycopg
 from fastapi import HTTPException, status
+from psycopg.types.json import Jsonb
 
 from app.core.security import scoped_institution
 from app.models.auth import User
 from app.services import audit_store
-from app.services.batches import as_uuid
+from app.services import submission_windows as windows
+from app.services.batches import Event, as_uuid
 from app.services.validation import mask_apaar
 
 MAX_LIMIT = 200
@@ -20,7 +23,7 @@ _SELECT = """
     select a.id, a.student_id, s.full_name as student_name, s.apaar_id, s.provisional_id,
            s.opted_out, s.dob, p.institution_id, a.programme_id, p.code as programme_code,
            a.academic_year, a.pool::text as seat_pool, a.admission_mode, a.admission_date,
-           a.qualifying_exam_pct, a.status::text as status, a.batch_id
+           a.qualifying_exam_pct, a.status::text as status, a.batch_id, a.active
     from public.admissions a
     join public.students s on s.id = a.student_id
     join public.programmes p on p.id = a.programme_id
@@ -34,6 +37,8 @@ EDITABLE = {
     "student_name": ("students", "full_name", "text"),
     "dob": ("students", "dob", "date"),
 }
+# Not a column: approving an edit request for this field withdraws the admission.
+WITHDRAWAL = "withdrawal"
 
 
 def _admission(row: dict[str, Any]) -> dict[str, Any]:
@@ -61,7 +66,9 @@ def list_admissions(
     conn: psycopg.Connection, user: User, filters: dict[str, Any], limit: int, offset: int
 ) -> list[dict[str, Any]]:
     institution = scoped_institution(user, filters.get("institution_id"))
-    clauses, params = ["a.active"], []
+    # Withdrawn admissions are inactive; they are listed only when asked for by status.
+    clauses = [] if filters.get("status") == "withdrawn" else ["a.active"]
+    params: list[Any] = []
     for column, value in (
         ("p.institution_id", institution),
         ("a.programme_id", filters.get("programme_id")),
@@ -82,12 +89,11 @@ def list_admissions(
     return [_admission(r) for r in rows]
 
 
-def _load_admission(conn: psycopg.Connection, admission_id: str, user: User) -> dict[str, Any]:
-    row = (
-        conn.execute(f"{_SELECT} where a.id = %s", (admission_id,)).fetchone()
-        if as_uuid(admission_id)
-        else None
-    )
+def _load_admission(
+    conn: psycopg.Connection, admission_id: str, user: User, lock: bool = False
+) -> dict[str, Any]:
+    sql = f"{_SELECT} where a.id = %s" + (" for update of a" if lock else "")
+    row = conn.execute(sql, (admission_id,)).fetchone() if as_uuid(admission_id) else None
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Admission '{admission_id}' not found")
     scoped_institution(user, str(row["institution_id"]))
@@ -107,12 +113,15 @@ def _edit_request(row: dict[str, Any]) -> dict[str, Any]:
 def create_edit_request(
     conn: psycopg.Connection, admission_id: str, body: dict[str, str], user: User
 ) -> dict[str, Any]:
-    if body["field"] not in EDITABLE:
+    if body["field"] not in EDITABLE and body["field"] != WITHDRAWAL:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, f"field must be one of {sorted(EDITABLE)}"
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"field must be one of {sorted([*EDITABLE, WITHDRAWAL])}",
         )
     admission = _load_admission(conn, admission_id, user)
-    old = admission.get(body["field"])
+    if not admission["active"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Admission is withdrawn")
+    old = admission["status"] if body["field"] == WITHDRAWAL else admission.get(body["field"])
     row = conn.execute(
         """
         insert into public.edit_requests
@@ -141,8 +150,8 @@ def create_edit_request(
 
 def decide_edit_request(
     conn: psycopg.Connection, edit_request_id: str, decision: str, note: str | None, user: User
-) -> dict[str, Any]:
-    """Approve (and apply) or reject a pending edit request."""
+) -> tuple[dict[str, Any], list[Event]]:
+    """Approve (and apply) or reject a pending edit request. Returns the broadcasts."""
     row = (
         conn.execute(
             "select * from public.edit_requests where id = %s for update", (edit_request_id,)
@@ -156,7 +165,12 @@ def decide_edit_request(
         )
     if row["status"] != "pending":
         raise HTTPException(status.HTTP_409_CONFLICT, f"Edit request is already {row['status']}")
-    if decision == "approved":
+    events: list[Event] = []
+    if decision == "approved" and row["field"] == WITHDRAWAL:
+        _, events = withdraw(
+            conn, str(row["admission_id"]), row["reason"], user, edit_request_id=edit_request_id
+        )
+    elif decision == "approved":
         table, column, cast = EDITABLE[row["field"]]
         target = (
             "where id = %s"
@@ -188,4 +202,153 @@ def decide_edit_request(
         row["id"],
         {"admission_id": str(row["admission_id"]), "field": row["field"]},
     )
-    return _edit_request(row)
+    events.append(
+        (
+            "edit_request.decided",
+            {
+                "edit_request_id": str(row["id"]),
+                "admission_id": str(row["admission_id"]),
+                "status": row["status"],
+                "decided_at": row["decided_at"].isoformat(),
+            },
+        )
+    )
+    return _edit_request(row), events
+
+
+# ---------------------------------------------------------------------------- status changes
+def status_event(
+    admission_id: Any, student_id: Any, old: str, new: str, at: datetime | None = None
+) -> Event:
+    return (
+        "admission.status_changed",
+        {
+            "admission_id": str(admission_id),
+            "student_id": str(student_id),
+            "from": old,
+            "to": new,
+            "changed_at": (at or datetime.now(UTC)).isoformat(),
+        },
+    )
+
+
+def _note_released_seat(
+    conn: psycopg.Connection, user: User, admission: dict[str, Any]
+) -> Event | None:
+    """If the pool is back within capacity, add a note to its open intake_overrun case."""
+    key = (str(admission["programme_id"]), admission["academic_year"], admission["seat_pool"])
+    case = conn.execute(
+        """
+        select id, evidence from public.review_cases
+        where kind = 'intake_overrun' and status = 'open' and institution_id = %s
+          and evidence->>'programme_id' = %s and evidence->>'academic_year' = %s
+          and evidence->>'pool' = %s
+        for update
+        """,
+        (admission["institution_id"], *key),
+    ).fetchone()
+    if case is None:
+        return None
+    approved = conn.execute(
+        """
+        select approved_seats from public.seat_pools
+        where programme_id = %s and academic_year = %s and pool = %s::public.seat_pool
+        order by rule_version desc limit 1
+        """,
+        key,
+    ).fetchone()
+    used = conn.execute(
+        """
+        select count(*) as n from public.admissions
+        where active and programme_id = %s and academic_year = %s and pool = %s::public.seat_pool
+        """,
+        key,
+    ).fetchone()["n"]
+    seats = approved["approved_seats"] if approved else 0
+    if used > seats:
+        return None
+    now = datetime.now(UTC)
+    text = (
+        f"Withdrawal of admission {admission['id']} brought the {key[2]} pool back within"
+        f" capacity: {used} admitted against {seats} approved. Case left open for review."
+    )
+    updated = conn.execute(
+        """
+        update public.review_cases
+        set notes = notes || %s, updated_at = now()
+        where id = %s returning id, status::text as status, updated_at
+        """,
+        (Jsonb([{"at": now.isoformat(), "text": text}]), case["id"]),
+    ).fetchone()
+    audit_store.append_event(
+        conn,
+        user.id,
+        "review_case.noted",
+        "review_case",
+        updated["id"],
+        {"admission_id": str(admission["id"]), "used": used, "approved": seats},
+    )
+    return (
+        "review_case.updated",
+        {
+            "case_id": str(updated["id"]),
+            "status": updated["status"],
+            "updated_at": updated["updated_at"].isoformat(),
+        },
+    )
+
+
+def withdraw(
+    conn: psycopg.Connection,
+    admission_id: str,
+    reason: str,
+    user: User,
+    edit_request_id: str | None = None,
+) -> tuple[dict[str, Any], list[Event]]:
+    """Withdraw an admission and release its seat in the Seat Ledger.
+
+    After the academic year's window has closed or been locked, only an approved
+    ``withdrawal`` edit request (``edit_request_id``) may do this.
+    """
+    admission = _load_admission(conn, admission_id, user, lock=True)
+    if not admission["active"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Admission is already withdrawn")
+    if edit_request_id is None:
+        locked = windows.changes_locked(conn, admission["academic_year"])
+        if locked:
+            raise windows.closed_error(
+                admission["academic_year"],
+                locked,
+                "file an edit request with field 'withdrawal' for an aicte_admin to approve.",
+            )
+    row = conn.execute(
+        """
+        update public.admissions
+        set active = false, status = 'withdrawn', withdrawn_at = now(), withdrawal_reason = %s
+        where id = %s returning withdrawn_at
+        """,
+        (reason, admission_id),
+    ).fetchone()
+    audit_store.append_event(
+        conn,
+        user.id,
+        "admission.withdrawn",
+        "admission",
+        admission_id,
+        {"from": admission["status"]}
+        | ({"edit_request_id": edit_request_id} if edit_request_id else {}),
+    )
+    events = [
+        status_event(
+            admission_id,
+            admission["student_id"],
+            admission["status"],
+            "withdrawn",
+            row["withdrawn_at"],
+        )
+    ]
+    noted = _note_released_seat(conn, user, admission)
+    if noted:
+        events.append(noted)
+    out = _admission({**admission, "status": "withdrawn"})
+    return out, events

@@ -9,7 +9,15 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Domains that can be switched from mock fixtures to Postgres with REAL_DOMAINS.
-DOMAINS = ("institutions", "seat_ledger", "batches", "admissions", "review_cases", "audit")
+DOMAINS = (
+    "institutions",
+    "seat_ledger",
+    "batches",
+    "admissions",
+    "review_cases",
+    "audit",
+    "submission_windows",
+)
 
 
 class Settings(BaseSettings):
@@ -30,6 +38,11 @@ class Settings(BaseSettings):
     pseudonym_secret: str = ""
     credential_signing_key: str = ""
     telegram_webhook_secret: str = ""
+    # X-Internal-Token for /internal/* endpoints; empty falls back to TELEGRAM_WEBHOOK_SECRET.
+    internal_api_token: str = ""
+    # HMAC key the per-institution outbound webhook secrets are derived from; empty falls
+    # back to PSEUDONYM_SECRET.
+    webhook_signing_key: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -42,6 +55,14 @@ class Settings(BaseSettings):
         if unknown:
             raise ValueError(f"Unknown REAL_DOMAINS {sorted(unknown)}; use {DOMAINS}")
         return frozenset(names)
+
+    @property
+    def internal_token(self) -> str:
+        return self.internal_api_token or self.telegram_webhook_secret
+
+    @property
+    def webhook_key(self) -> str:
+        return self.webhook_signing_key or self.pseudonym_secret
 
     def is_real(self, domain: str) -> bool:
         return domain in self.real_domain_set

@@ -29,7 +29,10 @@ class Admission(BaseModel):
 
 
 class EditRequestCreate(BaseModel):
-    field: str
+    field: str = Field(
+        description="admission_date, admission_mode, qualifying_exam_pct, student_name, dob,"
+        " or withdrawal (new_value 'withdrawn'; approving it withdraws the admission)"
+    )
     new_value: str
     reason: str = Field(min_length=1)
 
@@ -52,3 +55,7 @@ class EditRequest(BaseModel):
 class EditDecision(BaseModel):
     decision: Literal["approved", "rejected"]
     note: str | None = None
+
+
+class WithdrawRequest(BaseModel):
+    reason: str = Field(min_length=1)
