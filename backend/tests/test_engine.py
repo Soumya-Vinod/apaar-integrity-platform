@@ -304,3 +304,52 @@ def test_post_signals_api_empty_and_direct_list(client):
     assert res2.status_code == 200
     assert res2.json() == []
 
+
+def test_post_anomaly_api(client):
+    payload = {
+        "institutions": [
+            {
+                "institution_id": f"inst-{i}",
+                "seat_utilisation": 0.8,
+                "duplicate_rate": 0.01,
+            }
+            for i in range(10)
+        ]
+        + [
+            {
+                "institution_id": "inst-extreme",
+                "seat_utilisation": 2.5,
+                "duplicate_rate": 0.8,
+                "backdated_admission_rate": 0.9,
+            }
+        ]
+    }
+    response = client.post("/engine/anomaly", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 11
+    outlier = next(r for r in data if r["institution_id"] == "inst-extreme")
+    assert outlier["prediction"] == "anomalous"
+    assert outlier["score"] > 0.5
+
+
+def test_post_integrity_score_api(client):
+    payload = {
+        "institution_id": "inst-score-test",
+        "signals": [
+            {
+                "signal_name": "ELIGIBILITY_VIOLATION",
+                "severity": "review",
+                "score": 75.0,
+            }
+        ],
+        "anomaly_score": 0.40,
+    }
+    response = client.post("/engine/integrity-score", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["institution_id"] == "inst-score-test"
+    assert 0.0 <= data["score"] <= 100.0
+    assert data["risk_level"] in ("low", "medium", "high", "critical")
+    assert "components" in data
+
