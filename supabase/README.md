@@ -6,6 +6,8 @@ Postgres schema and seed for the APAAR Integrity Platform.
 | File | Purpose |
 | --- | --- |
 | `migrations/20261022154039_init_schema.sql` | Enums, tables, indexes, RLS enabled on every table (no policies yet), Realtime publication for `review_cases`, `admissions`, `batches` |
+| `migrations/20261023130407_pipeline.sql` | Upload staging (`batch_rows`), batch counts, active admissions, contact and exam columns |
+| `migrations/20261023135641_windows_corrections.sql` | `submission_windows`, correction batches (`parent_batch_id`), withdrawal and student-response columns, review-case notes, institution webhook and demo-loader `origin` columns |
 | `seed.sql` | The 3 synthetic institutions from the backend mock fixtures, their programmes and `2026-27` seat pools (same ids) |
 
 Schema changes go in **new** files in `migrations/`. Never edit a migration after it has been pushed.
