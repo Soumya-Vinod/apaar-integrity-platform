@@ -9,6 +9,7 @@ type CredentialRequest = components['schemas']['CredentialRequest']
 type Admission = components['schemas']['Admission']
 type StudentRecords = components['schemas']['StudentRecords']
 type StudentResponseResult = components['schemas']['StudentResponseResult']
+type AccessLogEntry = components['schemas']['AccessLogEntry']
 type SharedField = 'status' | 'institution' | 'programme' | 'academic_year'
 
 const SHARED_FIELDS: { id: SharedField; label: string }[] = [
@@ -69,6 +70,157 @@ function RecordsLoading() {
         <div key={item} className="h-40 animate-pulse rounded-xl bg-slate-200" />
       ))}
     </div>
+  )
+}
+
+function formatAccessedAt(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString(undefined, {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
+}
+
+function viewerTypeLabel(role: string): string | null {
+  const normalized = role.toLowerCase()
+  if (normalized.includes('verifier')) return 'Verifier'
+  if (normalized.includes('institution')) return 'Institution'
+  if (normalized.includes('aicte') || normalized.includes('auditor')) return 'AICTE'
+  return null
+}
+
+function AccessLogLoading() {
+  return (
+    <div className="space-y-3" aria-label="Loading access history">
+      {[1, 2, 3].map((item) => (
+        <div key={item} className="h-20 animate-pulse rounded-xl bg-slate-200" />
+      ))}
+    </div>
+  )
+}
+
+function AccessLogEntryContent({ entry }: { entry: AccessLogEntry }) {
+  const viewerType = viewerTypeLabel(entry.accessor_role)
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-semibold text-slate-900">{entry.accessor}</span>
+      {viewerType && (
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+          {viewerType}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function AccessLog() {
+  const [entries, setEntries] = useState<AccessLogEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  async function loadAccessLog() {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await api<AccessLogEntry[]>('/students/me/access-log')
+      setEntries(
+        [...response].sort(
+          (left, right) =>
+            new Date(right.accessed_at).getTime() - new Date(left.accessed_at).getTime(),
+        ),
+      )
+    } catch (loadError) {
+      setError(
+        loadError instanceof ApiError
+          ? `We could not load your access history (${loadError.status}).`
+          : 'We could not reach your access history. Please try again.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadAccessLog()
+  }, [])
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Who viewed my record</h2>
+        <p className="mt-1 text-sm text-slate-600">See when your record was accessed and why.</p>
+      </div>
+      {loading && <AccessLogLoading />}
+      {!loading && error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+          <p className="text-sm text-red-800">{error}</p>
+          <button
+            type="button"
+            onClick={() => void loadAccessLog()}
+            className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {!loading && !error && entries.length === 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
+          No one has viewed your record yet.
+        </div>
+      )}
+      {!loading && !error && entries.length > 0 && (
+        <>
+          <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white md:block">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Who</th>
+                  <th className="px-5 py-3 font-semibold">Purpose</th>
+                  <th className="px-5 py-3 font-semibold">Date and time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {entries.map((entry) => (
+                  <tr key={entry.id}>
+                    <td className="px-5 py-4"><AccessLogEntryContent entry={entry} /></td>
+                    <td className="px-5 py-4 text-sm text-slate-700">{entry.purpose}</td>
+                    <td className="px-5 py-4">
+                      <time dateTime={entry.accessed_at}>{formatAccessedAt(entry.accessed_at)}</time>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="space-y-3 md:hidden">
+            {entries.map((entry) => (
+              <article key={entry.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Who</p>
+                  <AccessLogEntryContent entry={entry} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Purpose</p>
+                  <p className="mt-1 text-sm text-slate-700">{entry.purpose}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Date and time</p>
+                  <time dateTime={entry.accessed_at} className="mt-1 block text-sm text-slate-600">
+                    {formatAccessedAt(entry.accessed_at)}
+                  </time>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
   )
 }
 
@@ -471,6 +623,8 @@ export default function StudentPage() {
         <MyRecords />
       ) : activeTab === 'share' ? (
         <ShareCredential />
+      ) : activeTab === 'viewed' ? (
+        <AccessLog />
       ) : (
         <Placeholder title={tabs.find((tab) => tab.id === activeTab)?.label ?? ''} />
       )}
