@@ -35,6 +35,8 @@ class BatchUploadResult(BaseModel):
         description="Uploaded column name -> admissions-template column name"
     )
     unmapped_columns: list[str]
+    missing_required: list[str] = []
+    duplicate_upload: bool = False
 
 
 class MappingRequest(BaseModel):
@@ -57,4 +59,5 @@ class CommitResult(BaseModel):
     status: BatchStatus
     rows_committed: int
     rows_rejected: int
+    rows_skipped_existing: int = 0
     review_cases_created: list[str]
