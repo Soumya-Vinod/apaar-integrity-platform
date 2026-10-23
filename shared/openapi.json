@@ -128,6 +128,68 @@
         }
       }
     },
+    "/engine/signals": {
+      "post": {
+        "tags": [
+          "engine"
+        ],
+        "summary": "Post Signals",
+        "description": "Execute rule-based integrity signals against institution data.",
+        "operationId": "post_signals_engine_signals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SignalsRequest"
+                  },
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "items": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Signal"
+                  },
+                  "type": "array",
+                  "title": "Response Post Signals Engine Signals Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "tags": [
@@ -5267,6 +5329,60 @@
         ],
         "title": "SeatLedger"
       },
+      "Signal": {
+        "properties": {
+          "signal_id": {
+            "type": "string",
+            "title": "Signal Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "signal_name": {
+            "type": "string",
+            "title": "Signal Name"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "review",
+              "info"
+            ],
+            "title": "Severity",
+            "default": "warning"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "default": 0.0
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution_id",
+          "signal_name"
+        ],
+        "title": "Signal",
+        "description": "An integrity signal raised against an institution."
+      },
       "SignalOut": {
         "properties": {
           "code": {
@@ -5296,6 +5412,62 @@
           "evidence"
         ],
         "title": "SignalOut"
+      },
+      "SignalsRequest": {
+        "properties": {
+          "institution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution Id"
+          },
+          "admissions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Admissions"
+          },
+          "records": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "seat_pools": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Seat Pools"
+          },
+          "historical_stats": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Historical Stats"
+          },
+          "rules_config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Rules Config"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "SignalsRequest",
+        "description": "Request payload for POST /engine/signals."
       },
       "SsoMockRequest": {
         "properties": {
