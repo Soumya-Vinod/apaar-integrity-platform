@@ -27,6 +27,50 @@
         }
       }
     },
+    "/engine": {
+      "get": {
+        "tags": [
+          "engine"
+        ],
+        "summary": "Get Engine",
+        "description": "Return engine metadata and configuration.",
+        "operationId": "get_engine_engine_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/engine/health": {
+      "get": {
+        "tags": [
+          "engine"
+        ],
+        "summary": "Get Engine Health",
+        "description": "Return engine health and import status.",
+        "operationId": "get_engine_health_engine_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineHealth"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "tags": [
@@ -3773,7 +3817,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           }
         },
@@ -4271,6 +4315,64 @@
           "encoding_b64"
         ],
         "title": "EncodeResponse"
+      },
+      "EngineHealth": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "ok"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "engine_ok": {
+            "type": "boolean",
+            "title": "Engine Ok",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "EngineHealth",
+        "description": "Engine health status."
+      },
+      "EngineInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": "Integrity Intelligence Engine"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "active"
+          },
+          "match_threshold": {
+            "type": "number",
+            "title": "Match Threshold"
+          },
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "match_threshold",
+          "model_version"
+        ],
+        "title": "EngineInfo",
+        "description": "Engine metadata and runtime parameters."
       },
       "EnrolmentReport": {
         "properties": {
@@ -5215,13 +5317,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",
