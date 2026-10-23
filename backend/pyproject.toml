@@ -3,9 +3,6 @@ name = "apaar-integrity-backend"
 version = "0.1.0"
 description = "FastAPI backend for the APAAR Integrity Platform."
 readme = "README.md"
-authors = [
-    { name = "SOUMYA VINOD", email = "goldenluvathena.01@gmail.com" }
-]
 requires-python = ">=3.12"
 dependencies = [
     "engine",
@@ -13,6 +10,7 @@ dependencies = [
     "httpx>=0.28.1",
     "openpyxl>=3.1.5",
     "pandas>=3.1.0",
+    "psycopg-pool>=3.3.3",
     "psycopg[binary]>=3.3.6",
     "pydantic-settings>=2.16.1",
     "pyjwt[crypto]>=2.15.1",
@@ -47,3 +45,4 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.File", "f
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["db: integration tests against Postgres; run with RUN_DB_TESTS=1"]

@@ -171,13 +171,12 @@ def test_webhook_checks_secret(client, settings_override):
     assert ok.status_code == 200 and ok.json()["handled"] == "start"
 
 
-def test_outside_mock_mode_needs_jwt_then_returns_501(client, settings_override):
+def test_outside_mock_mode_needs_jwt_then_falls_back_to_fixtures(client, settings_override):
     import jwt
 
     settings_override(mock_mode=False, supabase_jwt_secret="test-secret-at-least-32-bytes-long!!")
     bad = client.get("/review-cases", headers={"Authorization": "Bearer bad"})
     assert bad.status_code == 401
-    assert "X-Mock" not in bad.headers
 
     token = jwt.encode(
         {"sub": "u1", "aud": "authenticated", "app_metadata": {"role": "aicte_admin"}},
@@ -185,4 +184,6 @@ def test_outside_mock_mode_needs_jwt_then_returns_501(client, settings_override)
         algorithm="HS256",
     )
     response = client.get("/review-cases", headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 501
+    # MOCK_MODE only controls auth now; a domain not in REAL_DOMAINS still serves fixtures.
+    assert response.status_code == 200
+    assert response.headers["X-Mock"] == "true"

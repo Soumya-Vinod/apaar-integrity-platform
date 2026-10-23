@@ -3,10 +3,15 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.core.datasource import all_real
+from app.core.db import close_pool, warm_pool
 from app.routers import (
     admissions,
     audit,
@@ -28,11 +33,21 @@ from app.routers import (
 )
 
 settings = get_settings()
+settings.real_domain_set  # noqa: B018  (fail fast on a misspelled REAL_DOMAINS value)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    warm_pool()
+    yield
+    close_pool()
+
 
 app = FastAPI(
     title="APAAR Integrity Platform",
     description="Verifiable, consent-first student records for AICTE-approved institutions.",
     version=health.APP_VERSION,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -47,9 +62,14 @@ app.add_middleware(
 
 @app.middleware("http")
 async def mock_header(request: Request, call_next):
+    """X-Mock: true when the response came from fixtures, false when it came from Postgres.
+
+    Domain routers record their source in request.state; other endpoints report false only
+    when every domain is real.
+    """
     response = await call_next(request)
-    if get_settings().mock_mode:
-        response.headers["X-Mock"] = "true"
+    default = "false" if all_real() else "true"
+    response.headers["X-Mock"] = getattr(request.state, "x_mock", default)
     return response
 
 

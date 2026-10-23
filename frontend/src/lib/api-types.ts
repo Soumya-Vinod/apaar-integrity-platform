@@ -96,7 +96,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Seat Ledger */
+        /**
+         * Get Seat Ledger
+         * @description Per programme and pool: approved_seats, admitted (used), available (remaining),
+         *     overrun and rule_version.
+         */
         get: operations["get_seat_ledger_institutions__institution_id__seat_ledger_get"];
         put?: never;
         post?: never;
@@ -118,6 +122,9 @@ export interface paths {
         /**
          * Upload Batch
          * @description Upload a CSV or XLSX of admissions; returns the batch and a suggested column mapping.
+         *
+         *     Re-uploading the same file for the same institution returns the existing batch with
+         *     HTTP 200 and duplicate_upload=true.
          */
         post: operations["upload_batch_batches_post"];
         delete?: never;
@@ -135,7 +142,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Set Mapping */
+        /**
+         * Set Mapping
+         * @description Replace the column mapping, then re-validate every row.
+         */
         post: operations["set_mapping_batches__batch_id__mapping_post"];
         delete?: never;
         options?: never;
@@ -186,7 +196,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Commit Batch */
+        /**
+         * Commit Batch
+         * @description Commit valid rows to the Seat Ledger in one transaction. Idempotent.
+         */
         post: operations["commit_batch_batches__batch_id__commit_post"];
         delete?: never;
         options?: never;
@@ -291,7 +304,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resolve Review Case */
+        /**
+         * Resolve Review Case
+         * @description Set the outcome with a required, non-empty reviewer note.
+         */
         post: operations["resolve_review_case_review_cases__case_id__resolve_post"];
         delete?: never;
         options?: never;
@@ -306,7 +322,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Verify Audit Chain */
+        /**
+         * Verify Audit Chain
+         * @description Recompute the hash chain; on a break, broadcast audit.tamper_detected.
+         */
         get: operations["verify_audit_chain_audit_verify_get"];
         put?: never;
         post?: never;
@@ -882,6 +901,16 @@ export interface components {
             };
             /** Unmapped Columns */
             unmapped_columns: string[];
+            /**
+             * Missing Required
+             * @default []
+             */
+            missing_required: string[];
+            /**
+             * Duplicate Upload
+             * @default false
+             */
+            duplicate_upload: boolean;
         };
         /** BlindMatchCase */
         BlindMatchCase: {
@@ -951,6 +980,11 @@ export interface components {
             rows_committed: number;
             /** Rows Rejected */
             rows_rejected: number;
+            /**
+             * Rows Skipped Existing
+             * @default 0
+             */
+            rows_skipped_existing: number;
             /** Review Cases Created */
             review_cases_created: string[];
         };
@@ -1151,6 +1185,17 @@ export interface components {
             engine_version?: string | null;
             /** Version */
             version: string;
+            /**
+             * Db
+             * @default unconfigured
+             * @enum {string}
+             */
+            db: "ok" | "unconfigured" | "error";
+            /**
+             * Real Domains
+             * @default []
+             */
+            real_domains: string[];
         };
         /** Institution */
         Institution: {
@@ -1730,6 +1775,13 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Same file already uploaded; existing batch returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Successful Response */
             201: {
                 headers: {
@@ -1902,6 +1954,8 @@ export interface operations {
                 academic_year?: string | null;
                 status?: ("submitted" | "student_confirmed" | "student_disputed" | "no_response" | "withdrawn") | null;
                 seat_pool?: ("regular" | "tfw" | "fn_oci_pio" | "nri") | null;
+                limit?: number;
+                offset?: number;
             };
             header?: {
                 authorization?: string | null;

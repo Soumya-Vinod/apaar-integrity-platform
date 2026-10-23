@@ -1,7 +1,9 @@
 <!-- Owner: Dev B -->
 # Realtime events
 
-All events are broadcast on the Supabase Realtime channel **`platform`**. Each message has an `event` name and a JSON `payload`. Timestamps are ISO 8601 UTC.
+All events are broadcast on the Supabase Realtime channel **`platform`** (public Broadcast, sent by the backend through the Realtime REST broadcast endpoint). Each message has an `event` name and a JSON `payload`. Timestamps are ISO 8601 UTC.
+
+Payloads carry IDs, counts and statuses only: never names, contacts, APAAR IDs or free-text notes. Fetch details through the API.
 
 ## `batch.committed`
 
@@ -33,7 +35,6 @@ All events are broadcast on the Supabase Realtime channel **`platform`**. Each m
 {
   "case_id": "60000000-0000-4000-8000-000000000001",
   "status": "confirmed",
-  "reviewer_note": "Overrun of 11 seats confirmed against approval letter.",
   "updated_at": "2026-09-03T08:00:00Z"
 }
 ```

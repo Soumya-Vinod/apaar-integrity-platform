@@ -1,9 +1,27 @@
 # Owner: Dev B
-import pytest
-from fastapi.testclient import TestClient
+import os
 
-from app.core.config import get_settings
-from app.main import app
+# Unit tests run with default settings even when backend/.env exists: mock auth, every domain
+# on fixtures, no realtime calls. These env vars take precedence over backend/.env.
+for _name, _value in {
+    "MOCK_MODE": "true",
+    "REAL_DOMAINS": "",
+    "SUPABASE_URL": "",
+    "SUPABASE_SERVICE_ROLE_KEY": "",
+    "SUPABASE_JWT_SECRET": "",
+    "TELEGRAM_WEBHOOK_SECRET": "",
+}.items():
+    os.environ[_name] = _value
+# Unit runs never touch Postgres; DATABASE_URL from backend/.env is used only for the
+# integration tests (RUN_DB_TESTS=1).
+if os.environ.get("RUN_DB_TESTS") != "1":
+    os.environ["DATABASE_URL"] = ""
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.core.config import get_settings  # noqa: E402
+from app.main import app  # noqa: E402
 
 
 @pytest.fixture

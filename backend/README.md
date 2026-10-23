@@ -11,14 +11,36 @@ uv run ruff check .
 uv run python -m scripts.export_contracts           # writes ../shared/openapi.json and ../shared/schemas/
 ```
 
-## Mock mode
+## Data sources and auth
 
-`MOCK_MODE=true` is the default. Every endpoint returns fixtures from `app/mocks/`, and every response carries `X-Mock: true`. The current user comes from headers:
+Two independent switches:
 
-- `X-Demo-Role`: `institution_admin`, `institution_operator`, `aicte_admin` (default), `student`, `verifier`, `auditor`
-- `X-Demo-Institution`: institution id (optional)
+- `REAL_DOMAINS` (comma-separated, default empty) picks which domains come from Postgres: `institutions`, `seat_ledger`, `batches`, `admissions`, `review_cases`, `audit`. Every other domain, including all of Dev A, C and E's endpoints, serves fixtures from `app/mocks/`. Responses carry `X-Mock: true` for fixtures and `X-Mock: false` for Postgres.
+- `MOCK_MODE` controls auth only. `true` (default): the user comes from `X-Demo-Role` (`institution_admin`, `institution_operator`, `aicte_admin` (default), `student`, `verifier`, `auditor`) and `X-Demo-Institution`. `false`: a Supabase access token, verified against the project JWKS (ES256/RS256) or `SUPABASE_JWT_SECRET` (HS256), reading `app_metadata.role` and `app_metadata.institution_id`.
 
-With `MOCK_MODE=false`, the backend verifies a Supabase HS256 access token, reading `app_metadata.role` and `app_metadata.institution_id` from its claims. Endpoints return `501` until they are implemented.
+Institution users only ever see and write their own institution's rows; `aicte_admin` and `auditor` see everything.
+
+Real domains need `DATABASE_URL` (Supabase session pooler URI) and `PSEUDONYM_SECRET` (contact hashing) in `backend/.env`. `/health` reports `db: ok | unconfigured | error`.
+
+## Pipeline
+
+`POST /batches` (CSV or XLSX, at most `MAX_UPLOAD_MB` and `MAX_UPLOAD_ROWS`) → suggested header mapping (synonyms such as `apaar_no`, `mobile`, `date_of_birth`) → `POST /batches/{id}/mapping` if required columns are missing → validation against `shared/rule-codes.md` → `POST /batches/{id}/commit`. Commit is one transaction: students upserted, seat pools locked, admissions inserted, one `intake_overrun` case per overrun pool, one `signal` case per cross-institution duplicate, audit events chained. Re-uploading the same file or re-committing is idempotent. Phone numbers and emails are HMAC-hashed on arrival and never stored raw.
+
+Realtime events (`shared/events.md`) go to the Supabase Broadcast channel `platform` when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set; failures are logged and ignored.
+
+## Tests
+
+```sh
+uv run pytest -q                                     # unit tests; never touch the database
+RUN_DB_TESTS=1 uv run pytest tests/integration -q    # against DATABASE_URL; TEST- rows, cleaned up afterwards
+```
+
+## Audit tamper demo
+
+```sh
+uv run python -m scripts.tamper_demo --break --yes   # GET /audit/verify now fails at that event
+uv run python -m scripts.tamper_demo --restore --yes
+```
 
 ## Layout
 
@@ -31,7 +53,8 @@ With `MOCK_MODE=false`, the backend verifies a Supabase HS256 access token, read
 | `app/routers/reports.py`, `certificates.py` | Reports and certificates | Dev C |
 | `app/routers/credentials.py`, `students.py`, `webhooks.py` | Student side | Dev E |
 | other `app/routers/` | Everything else | Dev B |
-| `app/services/` | Business logic; placeholders except `validation.py`, `batches.suggest_mapping` and `reports` rendering | Dev B |
+| `app/core/db.py`, `datasource.py` | Postgres pool and the per-domain switch | Dev B |
+| `app/services/` | Ingestion, validation, batches, Seat Ledger, admissions, review cases, audit store, realtime; other files are placeholders | Dev B |
 | `app/mocks/` | Fixtures. Ids follow `<prefix>-0000-4000-8000-<n>`: `1…` institutions, `2…` programmes, `3…` batches, `4…` students, `5…` admissions, `6…` review cases | Dev B |
 
 Demo identities: "Shadow Institute of Technology" is `10000000-0000-4000-8000-000000000003`; the demo student is `40000000-0000-4000-8000-000000000001`. The mock credential is signed with a demo Ed25519 key derived from a public string, so it is for mock mode only.

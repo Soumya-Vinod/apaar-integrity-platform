@@ -2,12 +2,14 @@
 """Authentication and role guards.
 
 Mock mode: the user comes from the X-Demo-Role and X-Demo-Institution headers.
-Otherwise: a Supabase access token (HS256) in the Authorization header.
+Otherwise: a Supabase access token in the Authorization header, verified against the
+project JWKS (ES256/RS256) or, for legacy projects, SUPABASE_JWT_SECRET (HS256).
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from functools import lru_cache
 from typing import get_args
 
 import jwt
@@ -39,16 +41,54 @@ def demo_user(role: str | None, institution: str | None) -> User:
     )
 
 
+_ASYMMETRIC = ["ES256", "RS256"]
+
+
+@lru_cache(maxsize=4)
+def jwks_client(supabase_url: str) -> jwt.PyJWKClient:
+    """Cached JWKS client for the project; keys are cached and refreshed on unknown kid."""
+    url = f"{supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+    return jwt.PyJWKClient(url, cache_keys=True, lifespan=600, timeout=5)
+
+
+def decode_token(token: str, settings: Settings) -> dict:
+    """Verify a Supabase access token.
+
+    Asymmetric tokens (ES256, RS256) are checked against the project JWKS. HS256 tokens are
+    accepted only when SUPABASE_JWT_SECRET is set (legacy projects). Audience must be
+    "authenticated"; the issuer must be {SUPABASE_URL}/auth/v1 whenever SUPABASE_URL is set.
+    """
+    algorithm = jwt.get_unverified_header(token).get("alg")
+    issuer = f"{settings.supabase_url.rstrip('/')}/auth/v1" if settings.supabase_url else None
+    options = {"require": ["exp", "sub"]} if issuer else {"require": ["sub"]}
+    if algorithm == "HS256":
+        if not settings.supabase_jwt_secret:
+            raise jwt.InvalidTokenError("HS256 tokens need SUPABASE_JWT_SECRET")
+        key: object = settings.supabase_jwt_secret
+        algorithms = ["HS256"]
+    elif algorithm in _ASYMMETRIC:
+        if not settings.supabase_url:
+            raise jwt.InvalidTokenError("SUPABASE_URL is needed to fetch the JWKS")
+        key = jwks_client(settings.supabase_url).get_signing_key_from_jwt(token).key
+        algorithms = _ASYMMETRIC
+    else:
+        raise jwt.InvalidTokenError(f"Unsupported algorithm {algorithm}")
+    return jwt.decode(
+        token,
+        key,
+        algorithms=algorithms,
+        audience="authenticated",
+        issuer=issuer,
+        options=options,
+    )
+
+
 def _user_from_jwt(authorization: str | None, settings: Settings) -> User:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
-    token = authorization.split(" ", 1)[1]
-    # TODO(Dev B): support Supabase asymmetric signing keys via the project JWKS endpoint.
     try:
-        claims = jwt.decode(
-            token, settings.supabase_jwt_secret, algorithms=["HS256"], audience="authenticated"
-        )
-    except jwt.PyJWTError as exc:
+        claims = decode_token(authorization.split(" ", 1)[1], settings)
+    except (jwt.PyJWTError, jwt.PyJWKClientError) as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token") from exc
     app_meta = claims.get("app_metadata") or {}
     role = app_meta.get("role")
@@ -72,6 +112,25 @@ def get_current_user(
     if settings.mock_mode:
         return demo_user(x_demo_role, x_demo_institution)
     return _user_from_jwt(authorization, settings)
+
+
+INSTITUTION_ROLES = ("institution_admin", "institution_operator")
+
+
+def scoped_institution(user: User, requested: str | None = None) -> str | None:
+    """Institution a query or write is limited to.
+
+    Institution users are always pinned to their own institution, taken from the
+    authenticated user and never from the request; asking for another one is 403.
+    Everyone else gets ``requested`` (None means all institutions).
+    """
+    if user.role not in INSTITUTION_ROLES:
+        return requested
+    if not user.institution_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "User is not linked to an institution")
+    if requested and requested != user.institution_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not your institution")
+    return user.institution_id
 
 
 def require_roles(*roles: Role) -> Callable[..., User]:

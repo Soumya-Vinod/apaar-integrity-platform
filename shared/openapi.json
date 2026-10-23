@@ -542,6 +542,7 @@
           "seat-ledger"
         ],
         "summary": "Get Seat Ledger",
+        "description": "Per programme and pool: approved_seats, admitted (used), available (remaining),\noverrun and rule_version.",
         "operationId": "get_seat_ledger_institutions__institution_id__seat_ledger_get",
         "parameters": [
           {
@@ -642,7 +643,7 @@
           "batches"
         ],
         "summary": "Upload Batch",
-        "description": "Upload a CSV or XLSX of admissions; returns the batch and a suggested column mapping.",
+        "description": "Upload a CSV or XLSX of admissions; returns the batch and a suggested column mapping.\n\nRe-uploading the same file for the same institution returns the existing batch with\nHTTP 200 and duplicate_upload=true.",
         "operationId": "upload_batch_batches_post",
         "parameters": [
           {
@@ -715,6 +716,9 @@
               }
             }
           },
+          "200": {
+            "description": "Same file already uploaded; existing batch returned"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -734,6 +738,7 @@
           "batches"
         ],
         "summary": "Set Mapping",
+        "description": "Replace the column mapping, then re-validate every row.",
         "operationId": "set_mapping_batches__batch_id__mapping_post",
         "parameters": [
           {
@@ -1018,6 +1023,7 @@
           "batches"
         ],
         "summary": "Commit Batch",
+        "description": "Commit valid rows to the Seat Ledger in one transaction. Idempotent.",
         "operationId": "commit_batch_batches__batch_id__commit_post",
         "parameters": [
           {
@@ -1202,6 +1208,29 @@
                 }
               ],
               "title": "Seat Pool"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
             }
           },
           {
@@ -1706,6 +1735,7 @@
           "review-cases"
         ],
         "summary": "Resolve Review Case",
+        "description": "Set the outcome with a required, non-empty reviewer note.",
         "operationId": "resolve_review_case_review_cases__case_id__resolve_post",
         "parameters": [
           {
@@ -1806,6 +1836,7 @@
           "audit"
         ],
         "summary": "Verify Audit Chain",
+        "description": "Recompute the hash chain; on a break, broadcast audit.tamper_detected.",
         "operationId": "verify_audit_chain_audit_verify_get",
         "parameters": [
           {
@@ -3854,6 +3885,19 @@
             },
             "type": "array",
             "title": "Unmapped Columns"
+          },
+          "missing_required": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Required",
+            "default": []
+          },
+          "duplicate_upload": {
+            "type": "boolean",
+            "title": "Duplicate Upload",
+            "default": false
           }
         },
         "type": "object",
@@ -4120,6 +4164,11 @@
           "rows_rejected": {
             "type": "integer",
             "title": "Rows Rejected"
+          },
+          "rows_skipped_existing": {
+            "type": "integer",
+            "title": "Rows Skipped Existing",
+            "default": 0
           },
           "review_cases_created": {
             "items": {
@@ -4672,6 +4721,24 @@
           "version": {
             "type": "string",
             "title": "Version"
+          },
+          "db": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unconfigured",
+              "error"
+            ],
+            "title": "Db",
+            "default": "unconfigured"
+          },
+          "real_domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Real Domains",
+            "default": []
           }
         },
         "type": "object",

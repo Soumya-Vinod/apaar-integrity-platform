@@ -105,6 +105,19 @@
       },
       "title": "Unmapped Columns",
       "type": "array"
+    },
+    "missing_required": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Required",
+      "type": "array"
+    },
+    "duplicate_upload": {
+      "default": false,
+      "title": "Duplicate Upload",
+      "type": "boolean"
     }
   },
   "required": [

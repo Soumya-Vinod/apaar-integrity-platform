@@ -3,9 +3,6 @@ name = "apaar-integrity-bot"
 version = "0.1.0"
 description = "Telegram bot for APAAR Integrity Platform student confirmations."
 readme = "README.md"
-authors = [
-    { name = "SOUMYA VINOD", email = "goldenluvathena.01@gmail.com" }
-]
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1",
