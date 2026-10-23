@@ -373,6 +373,207 @@
         }
       }
     },
+    "/institutions/{institution_id}/api-keys/{key_id}/revoke": {
+      "post": {
+        "tags": [
+          "institutions"
+        ],
+        "summary": "Revoke Api Key",
+        "description": "Revoke a key; requests sending it get 401 from then on. Revoking twice is a no-op.",
+        "operationId": "revoke_api_key_institutions__institution_id__api_keys__key_id__revoke_post",
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Institution Id"
+            }
+          },
+          {
+            "name": "key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyRevoked"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/institutions/{institution_id}/webhook": {
+      "put": {
+        "tags": [
+          "institutions"
+        ],
+        "summary": "Set Webhook",
+        "description": "Set the URL that receives batch.committed (signed with X-Signature), or null to\nremove it. Each call with a URL returns a new signing secret, shown once.",
+        "operationId": "set_webhook_institutions__institution_id__webhook_put",
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Institution Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookConfig"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/institutions/{institution_id}/seat-ledger": {
       "get": {
         "tags": [
@@ -480,9 +681,27 @@
           "batches"
         ],
         "summary": "Upload Batch",
-        "description": "Upload a CSV or XLSX of admissions; returns the batch and a suggested column mapping.\n\nRe-uploading the same file for the same institution returns the existing batch with\nHTTP 200 and duplicate_upload=true.",
+        "description": "Upload a CSV or XLSX of admissions; returns the batch and a suggested column mapping.\n\nRe-uploading the same file for the same institution returns the existing batch with\nHTTP 200 and duplicate_upload=true. 409 SUBMISSION_WINDOW_CLOSED when the file names an\nacademic year whose submission window is not open. Accepts X-API-Key instead of user auth.",
         "operationId": "upload_batch_batches_post",
         "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Institution API key; replaces user auth when sent",
+              "title": "X-Api-Key"
+            },
+            "description": "Institution API key; replaces user auth when sent"
+          },
           {
             "name": "authorization",
             "in": "header",
@@ -860,7 +1079,7 @@
           "batches"
         ],
         "summary": "Commit Batch",
-        "description": "Commit valid rows to the Seat Ledger in one transaction. Idempotent.",
+        "description": "Commit valid rows to the Seat Ledger in one transaction. Idempotent.\n\n409 SUBMISSION_WINDOW_CLOSED outside the academic year's window. Accepts X-API-Key.",
         "operationId": "commit_batch_batches__batch_id__commit_post",
         "parameters": [
           {
@@ -871,6 +1090,24 @@
               "type": "string",
               "title": "Batch Id"
             }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Institution API key; replaces user auth when sent",
+              "title": "X-Api-Key"
+            },
+            "description": "Institution API key; replaces user auth when sent"
           },
           {
             "name": "authorization",
@@ -928,6 +1165,226 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CommitResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/batches/{batch_id}/corrections": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Upload Corrections",
+        "description": "Upload a corrected file for the rows this committed batch rejected.\n\nThe file is stored as a new batch linked by parent_batch_id, re-validated, and only rows\nmatching a rejected row are committed: by a source_row column holding the original row\nnumber, else by APAAR ID, provisional ID, or name and date of birth. Fixed rows have\ntheir error findings in the original batch resolved.",
+        "operationId": "upload_corrections_batches__batch_id__corrections_post",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Institution API key; replaces user auth when sent",
+              "title": "X-Api-Key"
+            },
+            "description": "Institution API key; replaces user auth when sent"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_corrections_batches__batch_id__corrections_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/validation-issues/{issue_id}/resolve": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Resolve Issue",
+        "description": "Resolve a finding with a note. Warnings and info: institution_admin or aicte_admin.\nReview findings: aicte_admin only. Errors (409) are fixed with a correction upload.",
+        "operationId": "resolve_issue_validation_issues__issue_id__resolve_post",
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Issue Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveIssueRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationIssue"
                 }
               }
             }
@@ -1253,6 +1710,7 @@
           "admissions"
         ],
         "summary": "Decide Edit Request",
+        "description": "Approve (and apply) or reject. Approving a 'withdrawal' request withdraws the\nadmission. Broadcasts edit_request.decided.",
         "operationId": "decide_edit_request_edit_requests__edit_request_id__decision_post",
         "parameters": [
           {
@@ -1330,6 +1788,467 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EditRequest"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admissions/{admission_id}/withdraw": {
+      "post": {
+        "tags": [
+          "admissions"
+        ],
+        "summary": "Withdraw Admission",
+        "description": "Withdraw an admission (reason required) and release its seat in the Seat Ledger.\n\nAfter the academic year's submission window closes or is locked this returns 409\nSUBMISSION_WINDOW_CLOSED: file an edit request with field 'withdrawal' instead.\nBroadcasts admission.status_changed.",
+        "operationId": "withdraw_admission_admissions__admission_id__withdraw_post",
+        "parameters": [
+          {
+            "name": "admission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Admission Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Admission"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/admissions/mark-no-response": {
+      "post": {
+        "tags": [
+          "admissions",
+          "admin"
+        ],
+        "summary": "Mark No Response",
+        "description": "Set no_response on submitted admissions committed more than older_than_days ago.",
+        "operationId": "mark_no_response_admin_admissions_mark_no_response_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkNoResponseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkNoResponseResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/submission-windows": {
+      "get": {
+        "tags": [
+          "submission-windows"
+        ],
+        "summary": "List Windows",
+        "description": "Every academic year's window with its current state (not_open, open, closed, locked).",
+        "operationId": "list_windows_submission_windows_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubmissionWindow"
+                  },
+                  "title": "Response List Windows Submission Windows Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "submission-windows"
+        ],
+        "summary": "Set Window",
+        "description": "Create the window for an academic year, or move the dates of an unlocked one.\n\nA locked window cannot be changed (409 SUBMISSION_WINDOW_CLOSED).",
+        "operationId": "set_window_submission_windows_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionWindowCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionWindow"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/submission-windows/{window_id}/lock": {
+      "post": {
+        "tags": [
+          "submission-windows"
+        ],
+        "summary": "Lock Window",
+        "description": "Lock the window. From now on admission changes for that year need an approved edit\nrequest. Locking an already locked window returns it unchanged.",
+        "operationId": "lock_window_submission_windows__window_id__lock_post",
+        "parameters": [
+          {
+            "name": "window_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Window Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionWindow"
                 }
               }
             }
@@ -1866,6 +2785,66 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApaarVerifyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/student-responses": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Record Student Response",
+        "description": "Record a student's confirm or dispute of an admission. Idempotent: the same response\nagain returns changed=false and broadcasts nothing.",
+        "operationId": "record_student_response_internal_student_responses_post",
+        "parameters": [
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentResponseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentResponseResult"
                 }
               }
             }
@@ -3587,6 +4566,30 @@
         ],
         "title": "ApiKeyCreated"
       },
+      "ApiKeyRevoked": {
+        "properties": {
+          "key_id": {
+            "type": "string",
+            "title": "Key Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "revoked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Revoked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key_id",
+          "institution_id",
+          "revoked_at"
+        ],
+        "title": "ApiKeyRevoked"
+      },
       "AuditVerifyResult": {
         "properties": {
           "ok": {
@@ -3657,6 +4660,18 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "parent_batch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Batch Id",
+            "description": "Set on a correction batch: the batch whose rejected rows it fixes"
           }
         },
         "type": "object",
@@ -3827,6 +4842,20 @@
         ],
         "title": "Body_upload_batch_batches_post"
       },
+      "Body_upload_corrections_batches__batch_id__corrections_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_corrections_batches__batch_id__corrections_post"
+      },
       "Certificate": {
         "properties": {
           "certificate_no": {
@@ -3935,6 +4964,24 @@
             },
             "type": "array",
             "title": "Review Cases Created"
+          },
+          "parent_batch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Batch Id",
+            "description": "Set on a correction commit: the batch whose rejected rows it fixes"
+          },
+          "rows_not_matched": {
+            "type": "integer",
+            "title": "Rows Not Matched",
+            "description": "Correction rows that matched no rejected row of the parent batch",
+            "default": 0
           }
         },
         "type": "object",
@@ -4251,7 +5298,8 @@
         "properties": {
           "field": {
             "type": "string",
-            "title": "Field"
+            "title": "Field",
+            "description": "admission_date, admission_mode, qualifying_exam_pct, student_name, dob, or withdrawal (new_value 'withdrawn'; approving it withdraws the admission)"
           },
           "new_value": {
             "type": "string",
@@ -4659,6 +5707,37 @@
         ],
         "title": "MappingRequest"
       },
+      "MarkNoResponseRequest": {
+        "properties": {
+          "older_than_days": {
+            "type": "integer",
+            "maximum": 365.0,
+            "minimum": 0.0,
+            "title": "Older Than Days",
+            "default": 14
+          }
+        },
+        "type": "object",
+        "title": "MarkNoResponseRequest"
+      },
+      "MarkNoResponseResult": {
+        "properties": {
+          "marked": {
+            "type": "integer",
+            "title": "Marked"
+          },
+          "older_than_days": {
+            "type": "integer",
+            "title": "Older Than Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "marked",
+          "older_than_days"
+        ],
+        "title": "MarkNoResponseResult"
+      },
       "PoolLedger": {
         "properties": {
           "pool": {
@@ -4805,6 +5884,20 @@
           "public_key_b64"
         ],
         "title": "PublicKey"
+      },
+      "ResolveIssueRequest": {
+        "properties": {
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note"
+        ],
+        "title": "ResolveIssueRequest"
       },
       "ResolveRequest": {
         "properties": {
@@ -5206,6 +6299,175 @@
         ],
         "title": "StudentRecords"
       },
+      "StudentResponseRequest": {
+        "properties": {
+          "admission_id": {
+            "type": "string",
+            "title": "Admission Id"
+          },
+          "response": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "disputed"
+            ],
+            "title": "Response"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "telegram",
+              "portal"
+            ],
+            "title": "Channel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "admission_id",
+          "response",
+          "channel"
+        ],
+        "title": "StudentResponseRequest"
+      },
+      "StudentResponseResult": {
+        "properties": {
+          "admission_id": {
+            "type": "string",
+            "title": "Admission Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "submitted",
+              "student_confirmed",
+              "student_disputed",
+              "no_response",
+              "withdrawn"
+            ],
+            "title": "Status"
+          },
+          "changed": {
+            "type": "boolean",
+            "title": "Changed",
+            "description": "False when the same response was already recorded"
+          },
+          "review_case_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Case Id",
+            "description": "The open dispute case for this admission, when there is one"
+          }
+        },
+        "type": "object",
+        "required": [
+          "admission_id",
+          "status",
+          "changed"
+        ],
+        "title": "StudentResponseResult"
+      },
+      "SubmissionWindow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "academic_year": {
+            "type": "string",
+            "title": "Academic Year"
+          },
+          "opens_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Opens At"
+          },
+          "closes_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Closes At"
+          },
+          "locked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked At"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_open",
+              "open",
+              "closed",
+              "locked"
+            ],
+            "title": "State",
+            "description": "not_open before opens_at, open until closes_at, then closed; locked once an aicte_admin locks it"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "academic_year",
+          "opens_at",
+          "closes_at",
+          "state",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SubmissionWindow"
+      },
+      "SubmissionWindowCreate": {
+        "properties": {
+          "academic_year": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}$",
+            "title": "Academic Year",
+            "examples": [
+              "2026-27"
+            ]
+          },
+          "opens_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Opens At"
+          },
+          "closes_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Closes At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "academic_year",
+          "opens_at",
+          "closes_at"
+        ],
+        "title": "SubmissionWindowCreate"
+      },
       "User": {
         "properties": {
           "id": {
@@ -5340,6 +6602,29 @@
             "type": "boolean",
             "title": "Resolved",
             "default": false
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
           }
         },
         "type": "object",
@@ -5376,6 +6661,80 @@
           "ok"
         ],
         "title": "WebhookAck"
+      },
+      "WebhookConfig": {
+        "properties": {
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Webhook Url"
+          },
+          "secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret",
+            "description": "HMAC-SHA256 signing secret for X-Signature. Shown once."
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": "The secret is shown once; setting the URL again rotates it."
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution_id"
+        ],
+        "title": "WebhookConfig"
+      },
+      "WebhookConfigRequest": {
+        "properties": {
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^https?://\\S+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Receives batch.committed; null removes the webhook"
+          }
+        },
+        "type": "object",
+        "title": "WebhookConfigRequest"
+      },
+      "WithdrawRequest": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "WithdrawRequest"
       }
     }
   }

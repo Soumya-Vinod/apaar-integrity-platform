@@ -1,6 +1,7 @@
 {
   "properties": {
     "field": {
+      "description": "admission_date, admission_mode, qualifying_exam_pct, student_name, dob, or withdrawal (new_value 'withdrawn'; approving it withdraws the admission)",
       "title": "Field",
       "type": "string"
     },

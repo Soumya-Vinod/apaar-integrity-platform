@@ -40,6 +40,19 @@
           "format": "date-time",
           "title": "Created At",
           "type": "string"
+        },
+        "parent_batch_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set on a correction batch: the batch whose rejected rows it fixes",
+          "title": "Parent Batch Id"
         }
       },
       "required": [
