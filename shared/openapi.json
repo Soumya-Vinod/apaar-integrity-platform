@@ -71,6 +71,63 @@
         }
       }
     },
+    "/engine/blind-match": {
+      "post": {
+        "tags": [
+          "engine"
+        ],
+        "summary": "Post Blind Match",
+        "description": "Execute in-memory privacy-preserving blind match and exact APAAR duplicate detection.",
+        "operationId": "post_blind_match_engine_blind_match_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/BlindMatchRequest"
+                  },
+                  {
+                    "items": {
+                      "$ref": "#/components/schemas/BlindMatchStudentInput"
+                    },
+                    "type": "array"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MatchCase"
+                  },
+                  "type": "array",
+                  "title": "Response Post Blind Match Engine Blind Match Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "tags": [
@@ -3813,6 +3870,84 @@
         ],
         "title": "BlindMatchCase"
       },
+      "BlindMatchRequest": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/BlindMatchStudentInput"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          }
+        },
+        "type": "object",
+        "required": [
+          "records"
+        ],
+        "title": "BlindMatchRequest",
+        "description": "Request payload for POST /engine/blind-match."
+      },
+      "BlindMatchStudentInput": {
+        "properties": {
+          "student_id": {
+            "type": "string",
+            "title": "Student Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "student_name": {
+            "type": "string",
+            "title": "Student Name"
+          },
+          "dob": {
+            "type": "string",
+            "title": "Dob"
+          },
+          "father_name": {
+            "type": "string",
+            "title": "Father Name",
+            "default": ""
+          },
+          "mother_name": {
+            "type": "string",
+            "title": "Mother Name",
+            "default": ""
+          },
+          "apaar_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apaar Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "institution_id",
+          "student_name",
+          "dob"
+        ],
+        "title": "BlindMatchStudentInput",
+        "description": "Input student record for blind match duplicate detection."
+      },
       "Body_upload_batch_batches_post": {
         "properties": {
           "file": {
@@ -4693,6 +4828,76 @@
           "mapping"
         ],
         "title": "MappingRequest"
+      },
+      "MatchCase": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "institution_a": {
+            "type": "string",
+            "title": "Institution A"
+          },
+          "institution_b": {
+            "type": "string",
+            "title": "Institution B"
+          },
+          "student_a_id": {
+            "type": "string",
+            "title": "Student A Id"
+          },
+          "student_b_id": {
+            "type": "string",
+            "title": "Student B Id"
+          },
+          "similarity_score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Similarity Score"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "matched_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Matched Fields"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "confirmed",
+              "dismissed",
+              "correction_requested"
+            ],
+            "title": "Status",
+            "default": "open"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution_a",
+          "institution_b",
+          "student_a_id",
+          "student_b_id",
+          "similarity_score",
+          "confidence"
+        ],
+        "title": "MatchCase",
+        "description": "Represents a potential duplicate between institutions."
       },
       "PoolLedger": {
         "properties": {
