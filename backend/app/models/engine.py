@@ -1,0 +1,70 @@
+# Owner: Dev A
+"""Models for the Integrity Intelligence Engine contract."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any, Literal
+from uuid import uuid4
+
+from pydantic import BaseModel, Field
+
+from app.models.common import CaseStatus, IssueSeverity
+
+RiskLevel = Literal["low", "medium", "high", "critical"]
+
+
+class MatchCase(BaseModel):
+    """Represents a potential duplicate between institutions."""
+
+    case_id: str = Field(default_factory=lambda: str(uuid4()))
+    institution_a: str
+    institution_b: str
+    student_a_id: str
+    student_b_id: str
+    similarity_score: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0)
+    matched_fields: list[str] = Field(default_factory=list)
+    status: CaseStatus = "open"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class Signal(BaseModel):
+    """An integrity signal raised against an institution."""
+
+    signal_id: str = Field(default_factory=lambda: str(uuid4()))
+    institution_id: str
+    signal_name: str
+    severity: IssueSeverity = "warning"
+    score: float = 0.0
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    description: str = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class IntegrityScore(BaseModel):
+    """Institution integrity score with associated signals and risk assessment."""
+
+    institution_id: str
+    score: float = Field(ge=0.0, le=100.0)
+    risk_level: RiskLevel = "low"
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    signals: list[Signal] = Field(default_factory=list)
+
+
+class EngineInfo(BaseModel):
+    """Engine metadata and runtime parameters."""
+
+    name: str = "Integrity Intelligence Engine"
+    version: str
+    status: str = "active"
+    match_threshold: float
+    model_version: str
+
+
+class EngineHealth(BaseModel):
+    """Engine health status."""
+
+    status: str = "ok"
+    version: str
+    engine_ok: bool = True

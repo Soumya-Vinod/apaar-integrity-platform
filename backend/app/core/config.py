@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     pseudonym_secret: str = ""
     credential_signing_key: str = ""
     telegram_webhook_secret: str = ""
+    match_threshold: float = 0.85
+    model_version: str = "0.1.0"
 
     @property
     def cors_origin_list(self) -> list[str]:

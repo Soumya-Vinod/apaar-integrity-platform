@@ -27,7 +27,7 @@ With `MOCK_MODE=false`, the backend verifies a Supabase HS256 access token, read
 | `app/main.py` | App, CORS, `X-Mock` middleware, routers | Dev B |
 | `app/core/` | Settings, auth, audit hash chain, rule codes | Dev B |
 | `app/models/` | Pydantic v2 models, one file per domain (the contract) | Dev B |
-| `app/routers/integrity.py`, `blind_match.py` | Integrity and Blind Match endpoints | Dev A |
+| `app/routers/engine.py`, `integrity.py`, `blind_match.py` | Engine, Integrity and Blind Match endpoints | Dev A |
 | `app/routers/reports.py`, `certificates.py` | Reports and certificates | Dev C |
 | `app/routers/credentials.py`, `students.py`, `webhooks.py` | Student side | Dev E |
 | other `app/routers/` | Everything else | Dev B |
