@@ -48,6 +48,7 @@ class IntegrityScore(BaseModel):
     institution_id: str
     score: float = Field(ge=0.0, le=100.0)
     risk_level: RiskLevel = "low"
+    components: dict[str, float] = Field(default_factory=dict)
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     signals: list[Signal] = Field(default_factory=list)
 
@@ -98,5 +99,36 @@ class SignalsRequest(BaseModel):
     seat_pools: list[dict[str, Any]] = Field(default_factory=list)
     historical_stats: list[dict[str, Any]] = Field(default_factory=list)
     rules_config: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {"extra": "allow"}
+
+
+class AnomalyPrediction(BaseModel):
+    """Anomaly prediction result for one institution."""
+
+    institution_id: str
+    score: float = Field(ge=0.0, le=1.0)
+    prediction: str = "normal"
+    top_features: list[str] = Field(default_factory=list)
+    feature_vector: dict[str, float] = Field(default_factory=dict)
+
+
+class AnomalyRequest(BaseModel):
+    """Request payload for POST /engine/anomaly."""
+
+    institutions: list[dict[str, Any]] = Field(default_factory=list)
+    features: list[dict[str, Any]] = Field(default_factory=list)
+
+    model_config = {"extra": "allow"}
+
+
+class IntegrityScoreRequest(BaseModel):
+    """Request payload for POST /engine/integrity-score."""
+
+    institution_id: str = "unknown"
+    signals: list[Signal] = Field(default_factory=list)
+    anomaly_score: float | None = None
+    blind_matches: list[MatchCase] = Field(default_factory=list)
+    weights: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"extra": "allow"}

@@ -9,10 +9,14 @@ from fastapi import APIRouter, Depends
 
 from app.core.config import Settings, get_settings
 from app.models.engine import (
+    AnomalyPrediction,
+    AnomalyRequest,
     BlindMatchRequest,
     BlindMatchStudentInput,
     EngineHealth,
     EngineInfo,
+    IntegrityScore,
+    IntegrityScoreRequest,
     MatchCase,
     Signal,
     SignalsRequest,
@@ -132,3 +136,126 @@ def post_signals(
         )
         for s in signals
     ]
+
+
+@router.post("/anomaly")
+def post_anomaly(
+    body: AnomalyRequest | dict[str, Any] | list[dict[str, Any]],
+) -> Any:
+    """Execute in-memory ML anomaly detection across institutions."""
+    from engine.anomaly.service import AnomalyDetectionService
+    from fastapi import HTTPException
+
+    is_single = False
+    if isinstance(body, AnomalyRequest):
+        payload: dict[str, Any] = body.model_dump()
+        items = payload.get("institutions") or payload.get("features") or []
+    elif isinstance(body, list):
+        items = body
+    elif isinstance(body, dict):
+        if "institutions" in body and isinstance(body["institutions"], list):
+            items = body["institutions"]
+        elif "features" in body and isinstance(body["features"], list):
+            items = body["features"]
+        elif not body:
+            return []
+        else:
+            items = [body]
+            is_single = True
+    else:
+        raise HTTPException(status_code=400, detail="Invalid request payload")
+
+    if not items:
+        return []
+
+    service = AnomalyDetectionService()
+    try:
+        results = service.fit_predict(items)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Anomaly detection failed: {exc}") from exc
+
+    predictions = [
+        AnomalyPrediction(
+            institution_id=r.institution_id,
+            score=r.score,
+            prediction=r.prediction,
+            top_features=r.top_features,
+            feature_vector=r.feature_vector,
+        )
+        for r in results
+    ]
+
+    return predictions[0] if is_single and predictions else predictions
+
+
+@router.post("/integrity-score")
+def post_integrity_score(
+    body: IntegrityScoreRequest | dict[str, Any] | list[dict[str, Any]],
+) -> Any:
+    """Calculate in-memory Institution Integrity Score."""
+    from engine.scoring.service import IntegrityScoringService
+    from fastapi import HTTPException
+
+    if isinstance(body, IntegrityScoreRequest):
+        payload: dict[str, Any] = body.model_dump()
+    elif isinstance(body, (dict, list)):
+        payload = body
+    else:
+        raise HTTPException(status_code=400, detail="Invalid request payload")
+
+    if isinstance(payload, list):
+        service = IntegrityScoringService()
+        scores = service.calculate_batch(payload)
+        return [
+            IntegrityScore(
+                institution_id=s.institution_id,
+                score=s.score,
+                risk_level=s.risk_level,  # type: ignore[arg-type]
+                components=s.components,
+                generated_at=s.generated_at,
+                signals=[
+                    Signal(
+                        signal_id=sig.signal_id,
+                        institution_id=sig.institution_id,
+                        signal_name=sig.signal_name,
+                        severity=sig.severity,
+                        score=sig.score,
+                        evidence=sig.evidence,
+                        description=sig.description,
+                        created_at=sig.created_at,
+                    )
+                    for sig in s.signals
+                ],
+            )
+            for s in scores
+        ]
+
+    if not payload:
+        raise HTTPException(status_code=400, detail="Payload cannot be empty")
+
+    service = IntegrityScoringService()
+    try:
+        score_res = service.calculate_from_data(payload)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Scoring calculation failed: {exc}") from exc
+
+    return IntegrityScore(
+        institution_id=score_res.institution_id,
+        score=score_res.score,
+        risk_level=score_res.risk_level,  # type: ignore[arg-type]
+        components=score_res.components,
+        generated_at=score_res.generated_at,
+        signals=[
+            Signal(
+                signal_id=sig.signal_id,
+                institution_id=sig.institution_id,
+                signal_name=sig.signal_name,
+                severity=sig.severity,
+                score=sig.score,
+                evidence=sig.evidence,
+                description=sig.description,
+                created_at=sig.created_at,
+            )
+            for sig in score_res.signals
+        ],
+    )
