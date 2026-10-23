@@ -7,7 +7,7 @@ Integrity engine for the APAAR Integrity Platform. The backend imports it as `en
 | --- | --- | --- |
 | `engine.types` | Shared dataclasses (`MatchCase`, `Signal`, `IntegrityScore`, `AnomalyResult`, etc.) | done |
 | `engine.config` | Engine configuration defaults | done |
-| `engine.routers` | FastAPI router endpoints (`/engine`, `/engine/health`, `/engine/blind-match`, `/engine/signals`, `/engine/anomaly`, `/engine/integrity-score`) | done |
+| `engine.routers` | FastAPI router endpoints (`/engine`, `/engine/health`, `/engine/blind-match`, `/engine/signals`, `/engine/anomaly`, `/engine/integrity-score`, `/engine/evaluate`) | done |
 | `engine.blind_match.encoder` | Text normalization, character bigrams, birth year salting, HMAC Bloom-filter encoding | done |
 | `engine.blind_match.similarity` | Dice and Jaccard similarity metrics over bit arrays | done |
 | `engine.blind_match.models` | `BloomFilter`, `StudentRecord`, `LinkageMatch`, and `ReviewCaseRepository` interfaces | done |
@@ -28,7 +28,12 @@ Integrity engine for the APAAR Integrity Platform. The backend imports it as `en
 | `engine.scoring.calculator` | Deterministic `IntegrityScoreCalculator` combining signals, anomaly, and matches | done |
 | `engine.scoring.service` | `IntegrityScoringService` for single institution and batch evaluations | done |
 | `engine.scoring.integrity` | Backward-compatible `integrity_score` function | done |
-| `engine.eval.harness` / `engine.evaluation` | Precision, recall and F1 per signal against datagen ground truth | stub |
+| `engine.evaluation.metrics` | Classification rates (Precision, Recall, F1, Accuracy, FPR, FNR) & ROC AUC | done |
+| `engine.evaluation.datasets` | Ground truth evaluation dataset format and synthetic benchmark generator | done |
+| `engine.evaluation.benchmark` | Benchmarking runner measuring component latency and throughput | done |
+| `engine.evaluation.report` | Structured, deterministic `EvaluationReport` format | done |
+| `engine.evaluation.service` | `EvaluationService` multi-domain verification framework | done |
+| `engine.eval.harness` / `engine.evaluation.harness` | Signal precision, recall and F1 against datagen ground truth | done |
 
 ---
 
@@ -670,6 +675,206 @@ Computes the unified 0–100 Integrity Score and risk assessment for an institut
   }
 }
 ```
+
+---
+
+## Evaluation Harness & Benchmarking Framework (Feature F24)
+
+The Evaluation Harness measures the effectiveness and operational performance of all intelligence engine components: Blind Match duplicate detection, rule-based integrity signals, Isolation Forest anomaly detection, and deterministic Integrity Score calculation.
+
+```
++---------------------------------------------------------------------------------+
+|                                Evaluation Dataset                               |
+| (Labelled Pairs, Planted Signal Records, Ground-Truth Anomalies, Control Insts) |
++---------------------------------------+-----------------------------------------+
+                                        |
+                 +----------------------+----------------------+
+                 |                                             |
+                 v                                             v
+  +------------------------------+             +-------------------------------+
+  | Multi-Domain Verification    |             | Component Benchmarking        |
+  | ├── Blind Match Precision/R  |             | ├── Encoding latency & rate   |
+  | ├── Signals TP/FP/FN & Rules |             | ├── Linkage comparisons/sec   |
+  | ├── Anomaly ROC AUC & Matrix |             | ├── Signals throughput        |
+  | └── Scoring Determinism & Map|             | └── Scoring latency           |
+  +--------------+---------------+             +---------------+---------------+
+                 |                                             |
+                 +----------------------+----------------------+
+                                        |
+                                        v
+                         +-----------------------------+
+                         | EvaluationReport            |
+                         | (evaluation.json Contract)  |
+                         +-----------------------------+
+```
+
+### Core Design Principles
+
+1. **Zero Database Dependency**: Operates entirely in memory; datasets and reports are fully independent from persistent databases or HTTP services.
+2. **Deterministic Reproducibility**: Metrics, confusion matrices, and consistency verifications are strictly reproducible across test executions.
+3. **Pluggable Ground Truth**: Standardized dataset format supporting custom JSON files or instant generation via [`create_synthetic_benchmark_dataset()`](file:///c:/Users/Chinmay/Desktop/Vs%20Code/apaar-integrity-platform/engine/src/engine/evaluation/datasets.py).
+
+---
+
+### Evaluation Metrics
+
+The framework evaluates predictions against labelled ground truth using classical statistical metrics:
+
+| Metric | Formula | Description |
+| --- | --- | --- |
+| **Precision** | $\frac{\text{TP}}{\text{TP} + \text{FP}}$ | Proportion of flagged items that are true violations/duplicates. |
+| **Recall (Sensitivity)** | $\frac{\text{TP}}{\text{TP} + \text{FN}}$ | Proportion of actual violations/duplicates successfully detected. |
+| **F1 Score** | $2 \times \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}$ | Harmonic mean balancing precision and recall. |
+| **Accuracy** | $\frac{\text{TP} + \text{TN}}{\text{TP} + \text{TN} + \text{FP} + \text{FN}}$ | Overall proportion of correct classifications. |
+| **False Positive Rate (FPR)** | $\frac{\text{FP}}{\text{FP} + \text{TN}}$ | Ratio of false alarms among actual negative samples. |
+| **False Negative Rate (FNR)** | $\frac{\text{FN}}{\text{TP} + \text{FN}}$ | Ratio of missed violations among actual positive samples. |
+| **Specificity** | $\frac{\text{TN}}{\text{TN} + \text{FP}}$ | True negative rate (proportion of clean items confirmed clean). |
+| **ROC AUC** | $\int_0^1 \text{TPR}(\text{FPR}) \, d\text{FPR}$ | Area under the Receiver Operating Characteristic curve. |
+
+---
+
+### Component Evaluation Details
+
+#### 1. Blind Match Evaluation
+- Compares candidate duplicate pairs flagged by pairwise Dice similarity against ground-truth duplicate and non-duplicate pairs.
+- Supports single-threshold evaluation and multi-threshold sweeps (e.g. $[0.70, 0.75, 0.80, 0.85, 0.90, 0.95]$) to evaluate threshold sensitivity.
+
+#### 2. Rule Signals Evaluation
+- Measures:
+  - `signals_generated`: Total signals raised by the rules engine.
+  - `correctly_generated`: True positive signals matching planted violations.
+  - `false_signals`: Signals generated on benign admissions.
+  - `missed_signals`: Planted violations that went undetected.
+- Produces per-rule performance breakdowns for `ELIGIBILITY_VIOLATION`, `SHARED_CONTACT_CLUSTER`, `BACKDATED_ADMISSIONS`, and `ZERO_ATTRITION_CAP_FILLING`.
+
+#### 3. ML Anomaly Detection Evaluation
+- Compares Isolation Forest binary predictions against ground-truth anomaly status.
+- Evaluates ROC-friendly continuous anomaly score distributions and computes ROC AUC.
+
+#### 4. Integrity Score Evaluation
+- Verifies:
+  - **Deterministic Outputs**: Re-running the exact same input produces identical scores and component deductions.
+  - **Score Stability**: Monotonic score behavior between clean and heavily flagged institutions.
+  - **Correct Risk Level Mapping**: Strict validation of thresholds ($\ge 80$ Low, $60\text{--}80$ Medium, $40\text{--}60$ High, $< 40$ Critical).
+  - **Configurable Weight Behavior**: Dynamically varying component weights scales deductions predictably.
+
+---
+
+### Benchmarking Utilities
+
+[`BenchmarkRunner`](file:///c:/Users/Chinmay/Desktop/Vs%20Code/apaar-integrity-platform/engine/src/engine/evaluation/benchmark.py) evaluates computational efficiency:
+- **Encoding Time**: Measures HMAC-SHA256 Bloom-filter construction throughput in records/sec.
+- **Linkage Time**: Measures blocking and pairwise Dice coefficient comparisons.
+- **Signal Execution Time**: Measures rule engine throughput in admissions/sec.
+- **Anomaly Detection Time**: Measures Isolation Forest fitting, scoring, and explainability latency per institution.
+- **Integrity Score Time**: Measures deterministic calculator throughput.
+
+---
+
+### Report Format (`evaluation.json`)
+
+The evaluation framework outputs a deterministic structured JSON report:
+
+```json
+{
+  "blind_match": {
+    "default_threshold": 0.85,
+    "metrics": {
+      "tp": 2,
+      "fp": 0,
+      "tn": 1,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "accuracy": 1.0,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.0
+    },
+    "threshold_sweep": [
+      { "threshold": 0.75, "f1_score": 1.0 },
+      { "threshold": 0.85, "f1_score": 1.0 },
+      { "threshold": 0.95, "f1_score": 1.0 }
+    ]
+  },
+  "signals": {
+    "signals_generated": 4,
+    "correctly_generated": 4,
+    "false_signals": 0,
+    "missed_signals": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "per_signal_statistics": {
+      "ELIGIBILITY_VIOLATION": { "precision": 1.0, "recall": 1.0, "f1_score": 1.0 },
+      "BACKDATED_ADMISSIONS": { "precision": 1.0, "recall": 1.0, "f1_score": 1.0 }
+    }
+  },
+  "anomaly_detection": {
+    "metrics": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "accuracy": 1.0,
+      "roc_auc": 1.0
+    }
+  },
+  "integrity_score": {
+    "deterministic_outputs_verified": true,
+    "risk_level_mapping_verified": true,
+    "configurable_weights_verified": true,
+    "score_stability_verified": true,
+    "status": "passed"
+  },
+  "benchmark": {
+    "encoding": { "encoding_time_ms": 1.25, "throughput_records_sec": 4800.0 },
+    "linkage": { "linkage_time_ms": 0.42 },
+    "signals": { "signals_execution_time_ms": 1.15 },
+    "anomaly_detection": { "anomaly_detection_time_ms": 12.5 },
+    "integrity_score": { "integrity_score_time_ms": 0.35 },
+    "total_benchmark_time_ms": 15.67
+  },
+  "summary": {
+    "status": "completed",
+    "blind_match_f1": 1.0,
+    "signals_f1": 1.0,
+    "anomaly_detection_f1": 1.0,
+    "mean_accuracy": 1.0,
+    "integrity_consistency": "passed"
+  },
+  "generated_at": "2026-10-23T12:00:00Z"
+}
+```
+
+---
+
+### API Usage
+
+#### POST `/engine/evaluate`
+
+Executes the in-memory evaluation harness and benchmarks across an uploaded ground truth dataset (or uses the synthetic benchmark suite if an empty object `{}` is supplied).
+
+**Request:**
+
+```json
+{
+  "dataset_id": "demo-dataset",
+  "blind_match": {
+    "records": [...],
+    "ground_truth": [...]
+  },
+  "signals": {
+    "data": { ... },
+    "ground_truth": [...]
+  },
+  "anomaly_detection": {
+    "institutions": [...],
+    "ground_truth": { ... }
+  }
+}
+```
+
+**Response (`200 OK`):** Complete `EvaluationReport` structure shown above.
 
 ---
 
