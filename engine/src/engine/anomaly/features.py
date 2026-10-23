@@ -166,12 +166,11 @@ class InstitutionFeatureExtractor:
     def _extract_from_raw_records(
         self, institution_id: str, data: dict[str, Any]
     ) -> InstitutionFeatureVector:
-        admissions: list[dict[str, Any]] = (
-            data.get("admissions") or data.get("records") or []
-        )
+        admissions: list[dict[str, Any]] = data.get("admissions") or data.get("records") or []
         # Filter for this institution if multi-institution list
         inst_admissions = [
-            a for a in admissions
+            a
+            for a in admissions
             if not a.get("institution_id") or str(a.get("institution_id")) == institution_id
         ]
         total_admissions = len(inst_admissions)
@@ -179,7 +178,8 @@ class InstitutionFeatureExtractor:
         # 1. Historical stats
         hist_stats: list[dict[str, Any]] = data.get("historical_stats") or []
         inst_stats = [
-            h for h in hist_stats
+            h
+            for h in hist_stats
             if not h.get("institution_id") or str(h.get("institution_id")) == institution_id
         ]
         # Sort by academic_year if possible
@@ -204,7 +204,8 @@ class InstitutionFeatureExtractor:
 
             # Count zero attrition instances where capacity was full or near full
             zero_attr_years = sum(
-                1 for h in inst_stats
+                1
+                for h in inst_stats
                 if float(h.get("attrition_count") or 0.0) == 0.0
                 and float(h.get("approved_seats") or 0.0) > 0.0
                 and (
@@ -215,8 +216,7 @@ class InstitutionFeatureExtractor:
             zero_attrition_frequency = zero_attr_years / len(inst_stats)
         elif "seat_pools" in data and total_admissions > 0:
             total_approved = sum(
-                float(p.get("approved_seats", 0.0))
-                for p in data.get("seat_pools", [])
+                float(p.get("approved_seats", 0.0)) for p in data.get("seat_pools", [])
             )
             if total_approved > 0:
                 seat_utilisation = total_admissions / total_approved
@@ -243,8 +243,7 @@ class InstitutionFeatureExtractor:
             ):
                 inst_matches.append(m)
             elif isinstance(m, dict) and (
-                m.get("institution_a") == institution_id
-                or m.get("institution_b") == institution_id
+                m.get("institution_a") == institution_id or m.get("institution_b") == institution_id
             ):
                 inst_matches.append(m)
         blind_match_rate = (len(inst_matches) / total_admissions) if total_admissions > 0 else 0.0

@@ -15,12 +15,10 @@ def evaluate(
     positives, false positives and false negatives; returns
     ``{type: {"precision": p, "recall": r, "f1": f1, "support": n}}``.
     """
+
     def _extract_key(item: dict[str, Any]) -> tuple[str, str]:
         rec = str(
-            item.get("record_id")
-            or item.get("student_id")
-            or item.get("institution_id")
-            or ""
+            item.get("record_id") or item.get("student_id") or item.get("institution_id") or ""
         )
         anom = str(item.get("anomaly_type") or item.get("signal_name") or "")
         return rec, anom
@@ -28,9 +26,7 @@ def evaluate(
     pred_keys = {_extract_key(p) for p in predictions}
     gt_keys = {_extract_key(g) for g in ground_truth}
 
-    all_types = sorted(
-        {k[1] for k in pred_keys.union(gt_keys) if k[1]}
-    )
+    all_types = sorted({k[1] for k in pred_keys.union(gt_keys) if k[1]})
 
     results: dict[str, dict[str, Any]] = {}
     for anom_type in all_types:

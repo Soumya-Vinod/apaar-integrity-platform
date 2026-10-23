@@ -102,9 +102,15 @@ def test_signal_rule_metrics_serialization() -> None:
 
 def test_binary_metrics_to_dict() -> None:
     bm = BinaryClassificationMetrics(
-        tp=5, fp=1, tn=10, fn=2,
-        precision=0.8333, recall=0.7143, f1_score=0.7692,
-        accuracy=0.8333, roc_auc=0.92,
+        tp=5,
+        fp=1,
+        tn=10,
+        fn=2,
+        precision=0.8333,
+        recall=0.7143,
+        f1_score=0.7692,
+        accuracy=0.8333,
+        roc_auc=0.92,
     )
     d = bm.to_dict()
     assert d["tp"] == 5

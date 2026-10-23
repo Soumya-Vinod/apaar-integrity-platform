@@ -217,9 +217,7 @@ def test_linkage_matches_and_threshold_filtering() -> None:
         "s1", "inst-a", "Rahul Sharma", "2004-05-15", "Vijay Sharma", "Sunita Sharma"
     )
     # Same student with minor typo in mother name
-    s2 = StudentRecord(
-        "s2", "inst-b", "Rahul Sharma", "2004-05-15", "Vijay Sharma", "Sunit Sharma"
-    )
+    s2 = StudentRecord("s2", "inst-b", "Rahul Sharma", "2004-05-15", "Vijay Sharma", "Sunit Sharma")
     # Different student in same birth year
     s3 = StudentRecord("s3", "inst-c", "Pooja Verma", "2004-11-20", "Anil Verma", "Kavita Verma")
 
@@ -247,11 +245,21 @@ def test_linkage_skips_same_apaar_id() -> None:
     # Pairs with same non-empty APAAR ID are skipped from fuzzy candidates (rule 3)
     service = BlindMatchService(secret=SECRET, threshold=0.70)
     s1 = StudentRecord(
-        "s1", "inst-a", "Rahul Sharma", "2004-05-15", "Vijay Sharma", "Sunita Sharma",
+        "s1",
+        "inst-a",
+        "Rahul Sharma",
+        "2004-05-15",
+        "Vijay Sharma",
+        "Sunita Sharma",
         apaar_id="999900000001",
     )
     s2 = StudentRecord(
-        "s2", "inst-b", "Rahul Sharma", "2004-05-15", "Vijay Sharma", "Sunita Sharma",
+        "s2",
+        "inst-b",
+        "Rahul Sharma",
+        "2004-05-15",
+        "Vijay Sharma",
+        "Sunita Sharma",
         apaar_id="999900000001",
     )
     rec1 = service.encode_student(s1)
@@ -265,16 +273,10 @@ def test_linkage_skips_same_apaar_id() -> None:
 
 
 def test_exact_apaar_duplicate_detection() -> None:
-    s1 = StudentRecord(
-        "s1", "inst-a", "Rahul Sharma", "2004-05-15", apaar_id="999911112222"
-    )
-    s2 = StudentRecord(
-        "s2", "inst-b", "Rahul Sharma", "2004-05-15", apaar_id="999911112222"
-    )
+    s1 = StudentRecord("s1", "inst-a", "Rahul Sharma", "2004-05-15", apaar_id="999911112222")
+    s2 = StudentRecord("s2", "inst-b", "Rahul Sharma", "2004-05-15", apaar_id="999911112222")
     # Same institution
-    s3 = StudentRecord(
-        "s3", "inst-a", "Other Student", "2004-05-15", apaar_id="999911112222"
-    )
+    s3 = StudentRecord("s3", "inst-a", "Other Student", "2004-05-15", apaar_id="999911112222")
     s4 = StudentRecord("s4", "inst-c", "No Apaar Student", "2004-05-15", apaar_id=None)
 
     cases = find_exact_apaar_duplicates([s1, s2, s3, s4])
@@ -325,21 +327,25 @@ def test_service_run_blind_match_pipeline() -> None:
 
     # Pair 1: Exact APAAR duplicate across institutions
     s1 = StudentRecord(
-        "s1", "inst-1", "Aarav Patel", "2004-01-10", "Suresh Patel",
+        "s1",
+        "inst-1",
+        "Aarav Patel",
+        "2004-01-10",
+        "Suresh Patel",
         apaar_id="999988887777",
     )
     s2 = StudentRecord(
-        "s2", "inst-2", "Aarav Patel", "2004-01-10", "Suresh Patel",
+        "s2",
+        "inst-2",
+        "Aarav Patel",
+        "2004-01-10",
+        "Suresh Patel",
         apaar_id="999988887777",
     )
 
     # Pair 2: Privacy-preserving fuzzy duplicate across institutions (different APAAR or opt-out)
-    s3 = StudentRecord(
-        "s3", "inst-1", "Sneha Iyer", "2004-06-25", "Venkatesh Iyer", "Lakshmi Iyer"
-    )
-    s4 = StudentRecord(
-        "s4", "inst-2", "Sneha Iyer", "2004-06-25", "Venkatesh Iyer", "Laxmi Iyer"
-    )
+    s3 = StudentRecord("s3", "inst-1", "Sneha Iyer", "2004-06-25", "Venkatesh Iyer", "Lakshmi Iyer")
+    s4 = StudentRecord("s4", "inst-2", "Sneha Iyer", "2004-06-25", "Venkatesh Iyer", "Laxmi Iyer")
 
     # Pair 3: Non-matching student
     s5 = StudentRecord("s5", "inst-3", "Rohan Gupta", "2004-09-30", "Manoj Gupta", "Anita Gupta")

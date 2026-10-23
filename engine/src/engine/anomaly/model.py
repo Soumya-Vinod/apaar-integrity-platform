@@ -51,9 +51,7 @@ class IsolationForestModel(BaseAnomalyModel):
         n_estimators: int = 100,
         **kwargs: Any,
     ) -> None:
-        raw_contamination = (
-            contamination if contamination is not None else ANOMALY_CONTAMINATION
-        )
+        raw_contamination = contamination if contamination is not None else ANOMALY_CONTAMINATION
         if isinstance(raw_contamination, str) and raw_contamination.lower() != "auto":
             try:
                 self.contamination: float | str = float(raw_contamination)
@@ -62,9 +60,7 @@ class IsolationForestModel(BaseAnomalyModel):
         else:
             self.contamination = raw_contamination
 
-        self.random_state = (
-            random_state if random_state is not None else MODEL_RANDOM_SEED
-        )
+        self.random_state = random_state if random_state is not None else MODEL_RANDOM_SEED
         self.n_estimators = n_estimators
         self.feature_names: list[str] = []
         self._is_fitted: bool = False

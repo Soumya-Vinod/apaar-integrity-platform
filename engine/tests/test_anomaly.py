@@ -59,12 +59,14 @@ def _generate_synthetic_dataset(
 
 def test_isolation_forest_model_fit_and_predict() -> None:
     model = IsolationForestModel(contamination=0.15, random_state=42)
-    X = np.array([
-        [0.7, 0.02, 0.01],
-        [0.72, 0.03, 0.01],
-        [0.71, 0.02, 0.02],
-        [1.85, 0.95, 0.80],  # obvious outlier
-    ])
+    X = np.array(
+        [
+            [0.7, 0.02, 0.01],
+            [0.72, 0.03, 0.01],
+            [0.71, 0.02, 0.02],
+            [1.85, 0.95, 0.80],  # obvious outlier
+        ]
+    )
     model.fit(X, ["seat_utilisation", "intake_growth", "duplicate_rate"])
 
     preds = model.predict(X)

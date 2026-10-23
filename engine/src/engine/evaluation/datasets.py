@@ -127,78 +127,96 @@ class EvaluationDataset:
         bm_gt: list[dict[str, Any]] = []
 
         # Pair 1: Exact APAAR duplicate across institutions
-        bm_records.append({
-            "student_id": "bm-stu-1a",
-            "institution_id": "inst-A",
-            "student_name": "Aarav Sharma",
-            "dob": "2004-05-15",
-            "father_name": "Vijay Sharma",
-            "mother_name": "Sunita Sharma",
-            "apaar_id": "999900001111",
-        })
-        bm_records.append({
-            "student_id": "bm-stu-1b",
-            "institution_id": "inst-B",
-            "student_name": "Aarav Sharma",
-            "dob": "2004-05-15",
-            "father_name": "Vijay Sharma",
-            "mother_name": "Sunita Sharma",
-            "apaar_id": "999900001111",
-        })
-        bm_gt.append({
-            "student_a_id": "bm-stu-1a",
-            "student_b_id": "bm-stu-1b",
-            "is_duplicate": True,
-            "type": "exact_apaar",
-        })
+        bm_records.append(
+            {
+                "student_id": "bm-stu-1a",
+                "institution_id": "inst-A",
+                "student_name": "Aarav Sharma",
+                "dob": "2004-05-15",
+                "father_name": "Vijay Sharma",
+                "mother_name": "Sunita Sharma",
+                "apaar_id": "999900001111",
+            }
+        )
+        bm_records.append(
+            {
+                "student_id": "bm-stu-1b",
+                "institution_id": "inst-B",
+                "student_name": "Aarav Sharma",
+                "dob": "2004-05-15",
+                "father_name": "Vijay Sharma",
+                "mother_name": "Sunita Sharma",
+                "apaar_id": "999900001111",
+            }
+        )
+        bm_gt.append(
+            {
+                "student_a_id": "bm-stu-1a",
+                "student_b_id": "bm-stu-1b",
+                "is_duplicate": True,
+                "type": "exact_apaar",
+            }
+        )
 
         # Pair 2: Fuzzy typo duplicate across institutions
-        bm_records.append({
-            "student_id": "bm-stu-2a",
-            "institution_id": "inst-A",
-            "student_name": "Priyanka Joshi",
-            "dob": "2004-07-20",
-            "father_name": "Kailash Joshi",
-            "mother_name": "Meena Joshi",
-        })
-        bm_records.append({
-            "student_id": "bm-stu-2b",
-            "institution_id": "inst-C",
-            "student_name": "Priyannka Joshi",  # single character typo
-            "dob": "2004-07-20",
-            "father_name": "Kailash Joshi",
-            "mother_name": "Meena Joshi",
-        })
-        bm_gt.append({
-            "student_a_id": "bm-stu-2a",
-            "student_b_id": "bm-stu-2b",
-            "is_duplicate": True,
-            "type": "fuzzy_typo",
-        })
+        bm_records.append(
+            {
+                "student_id": "bm-stu-2a",
+                "institution_id": "inst-A",
+                "student_name": "Priyanka Joshi",
+                "dob": "2004-07-20",
+                "father_name": "Kailash Joshi",
+                "mother_name": "Meena Joshi",
+            }
+        )
+        bm_records.append(
+            {
+                "student_id": "bm-stu-2b",
+                "institution_id": "inst-C",
+                "student_name": "Priyannka Joshi",  # single character typo
+                "dob": "2004-07-20",
+                "father_name": "Kailash Joshi",
+                "mother_name": "Meena Joshi",
+            }
+        )
+        bm_gt.append(
+            {
+                "student_a_id": "bm-stu-2a",
+                "student_b_id": "bm-stu-2b",
+                "is_duplicate": True,
+                "type": "fuzzy_typo",
+            }
+        )
 
         # Non-duplicate pairs (same birth year block to test discrimination)
-        bm_records.append({
-            "student_id": "bm-stu-distinct-1",
-            "institution_id": "inst-B",
-            "student_name": "Rohan Verma",
-            "dob": "2004-01-10",
-            "father_name": "Suresh Verma",
-            "mother_name": "Anita Verma",
-        })
-        bm_records.append({
-            "student_id": "bm-stu-distinct-2",
-            "institution_id": "inst-C",
-            "student_name": "Deepak Mehta",
-            "dob": "2004-11-25",
-            "father_name": "Ramesh Mehta",
-            "mother_name": "Kavita Mehta",
-        })
-        bm_gt.append({
-            "student_a_id": "bm-stu-distinct-1",
-            "student_b_id": "bm-stu-distinct-2",
-            "is_duplicate": False,
-            "type": "non_duplicate",
-        })
+        bm_records.append(
+            {
+                "student_id": "bm-stu-distinct-1",
+                "institution_id": "inst-B",
+                "student_name": "Rohan Verma",
+                "dob": "2004-01-10",
+                "father_name": "Suresh Verma",
+                "mother_name": "Anita Verma",
+            }
+        )
+        bm_records.append(
+            {
+                "student_id": "bm-stu-distinct-2",
+                "institution_id": "inst-C",
+                "student_name": "Deepak Mehta",
+                "dob": "2004-11-25",
+                "father_name": "Ramesh Mehta",
+                "mother_name": "Kavita Mehta",
+            }
+        )
+        bm_gt.append(
+            {
+                "student_a_id": "bm-stu-distinct-1",
+                "student_b_id": "bm-stu-distinct-2",
+                "is_duplicate": False,
+                "type": "non_duplicate",
+            }
+        )
 
         # 2. Signals data with planted rule violations
         admissions: list[dict[str, Any]] = [
@@ -301,57 +319,63 @@ class EvaluationDataset:
 
         for i in range(10):
             inst_id = f"eval-inst-normal-{i}"
-            anomaly_insts.append({
-                "institution_id": inst_id,
-                "features": {
-                    "seat_utilisation": 0.70 + (i % 4) * 0.05,
-                    "intake_growth": 0.02,
-                    "duplicate_rate": 0.0,
-                    "blind_match_rate": 0.01,
-                    "shared_contact_rate": 0.02,
-                    "backdated_admission_rate": 0.01,
-                    "eligibility_violation_count": 0.0,
-                    "zero_attrition_frequency": 0.0,
-                    "average_signal_severity": 1.0,
-                    "total_signals_generated": 1.0,
-                },
-            })
+            anomaly_insts.append(
+                {
+                    "institution_id": inst_id,
+                    "features": {
+                        "seat_utilisation": 0.70 + (i % 4) * 0.05,
+                        "intake_growth": 0.02,
+                        "duplicate_rate": 0.0,
+                        "blind_match_rate": 0.01,
+                        "shared_contact_rate": 0.02,
+                        "backdated_admission_rate": 0.01,
+                        "eligibility_violation_count": 0.0,
+                        "zero_attrition_frequency": 0.0,
+                        "average_signal_severity": 1.0,
+                        "total_signals_generated": 1.0,
+                    },
+                }
+            )
             anomaly_gt[inst_id] = False
 
         # Outlier 1: extreme seat overrun and duplicate rate
-        anomaly_insts.append({
-            "institution_id": "eval-inst-outlier-1",
-            "features": {
-                "seat_utilisation": 2.45,
-                "intake_growth": 1.80,
-                "duplicate_rate": 0.65,
-                "blind_match_rate": 0.40,
-                "shared_contact_rate": 0.50,
-                "backdated_admission_rate": 0.75,
-                "eligibility_violation_count": 45.0,
-                "zero_attrition_frequency": 1.0,
-                "average_signal_severity": 4.0,
-                "total_signals_generated": 18.0,
-            },
-        })
+        anomaly_insts.append(
+            {
+                "institution_id": "eval-inst-outlier-1",
+                "features": {
+                    "seat_utilisation": 2.45,
+                    "intake_growth": 1.80,
+                    "duplicate_rate": 0.65,
+                    "blind_match_rate": 0.40,
+                    "shared_contact_rate": 0.50,
+                    "backdated_admission_rate": 0.75,
+                    "eligibility_violation_count": 45.0,
+                    "zero_attrition_frequency": 1.0,
+                    "average_signal_severity": 4.0,
+                    "total_signals_generated": 18.0,
+                },
+            }
+        )
         anomaly_gt["eval-inst-outlier-1"] = True
 
         # Outlier 2: massive backdated admission and eligibility violations
-        anomaly_insts.append({
-            "institution_id": "eval-inst-outlier-2",
-            "features": {
-                "seat_utilisation": 1.95,
-                "intake_growth": 1.10,
-                "duplicate_rate": 0.35,
-                "blind_match_rate": 0.30,
-                "shared_contact_rate": 0.40,
-                "backdated_admission_rate": 0.90,
-                "eligibility_violation_count": 60.0,
-                "zero_attrition_frequency": 1.0,
-                "average_signal_severity": 3.8,
-                "total_signals_generated": 14.0,
-            },
-        })
+        anomaly_insts.append(
+            {
+                "institution_id": "eval-inst-outlier-2",
+                "features": {
+                    "seat_utilisation": 1.95,
+                    "intake_growth": 1.10,
+                    "duplicate_rate": 0.35,
+                    "blind_match_rate": 0.30,
+                    "shared_contact_rate": 0.40,
+                    "backdated_admission_rate": 0.90,
+                    "eligibility_violation_count": 60.0,
+                    "zero_attrition_frequency": 1.0,
+                    "average_signal_severity": 3.8,
+                    "total_signals_generated": 14.0,
+                },
+            }
+        )
         anomaly_gt["eval-inst-outlier-2"] = True
 
         # 4. Integrity score institutions

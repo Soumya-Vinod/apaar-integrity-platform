@@ -103,23 +103,23 @@ class EvaluationService:
         # Multi-threshold sweep
         sweeps: list[dict[str, Any]] = []
         sweep_thresholds = (
-            threshold_sweep
-            if threshold_sweep is not None
-            else [0.70, 0.75, 0.80, 0.85, 0.90, 0.95]
+            threshold_sweep if threshold_sweep is not None else [0.70, 0.75, 0.80, 0.85, 0.90, 0.95]
         )
         for t in sweep_thresholds:
             m = _evaluate_at_threshold(t)
-            sweeps.append({
-                "threshold": t,
-                "precision": round(m.precision, 4),
-                "recall": round(m.recall, 4),
-                "f1_score": round(m.f1_score, 4),
-                "accuracy": round(m.accuracy, 4),
-                "tp": m.tp,
-                "fp": m.fp,
-                "fn": m.fn,
-                "tn": m.tn,
-            })
+            sweeps.append(
+                {
+                    "threshold": t,
+                    "precision": round(m.precision, 4),
+                    "recall": round(m.recall, 4),
+                    "f1_score": round(m.f1_score, 4),
+                    "accuracy": round(m.accuracy, 4),
+                    "tp": m.tp,
+                    "fp": m.fp,
+                    "fn": m.fn,
+                    "tn": m.tn,
+                }
+            )
 
         return {
             "default_threshold": threshold,
@@ -187,9 +187,9 @@ class EvaluationService:
         f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
 
         # Per-signal breakdown
-        all_rule_names = sorted({_get_key(s)[1] for s in generated}.union(
-            {_get_key(gt)[1] for gt in gt_signals}
-        ))
+        all_rule_names = sorted(
+            {_get_key(s)[1] for s in generated}.union({_get_key(gt)[1] for gt in gt_signals})
+        )
 
         per_signal_stats: dict[str, dict[str, Any]] = {}
         for r_name in all_rule_names:
@@ -197,10 +197,7 @@ class EvaluationService:
             gt_r = [gt for gt in gt_signals if _get_key(gt)[1] == r_name]
 
             # Matching for this rule
-            r_tp = sum(
-                1 for gt in gt_r
-                if _get_key(gt) in {_get_key(s) for s in gen_r}
-            )
+            r_tp = sum(1 for gt in gt_r if _get_key(gt) in {_get_key(s) for s in gen_r})
             r_fn = len(gt_r) - r_tp
             r_fp = len(gen_r) - r_tp
 
@@ -249,20 +246,22 @@ class EvaluationService:
 
         for r in results:
             expected = bool(gt_map.get(r.institution_id, False))
-            predicted = (r.prediction == "anomalous")
+            predicted = r.prediction == "anomalous"
             score = float(r.score)
 
             y_true.append(expected)
             y_pred.append(predicted)
             y_scores.append(score)
 
-            detailed_institutions.append({
-                "institution_id": r.institution_id,
-                "expected": expected,
-                "predicted": predicted,
-                "score": score,
-                "top_features": r.top_features,
-            })
+            detailed_institutions.append(
+                {
+                    "institution_id": r.institution_id,
+                    "expected": expected,
+                    "predicted": predicted,
+                    "score": score,
+                    "top_features": r.top_features,
+                }
+            )
 
         metrics = compute_binary_metrics(y_true, y_pred, y_scores)
 
@@ -276,9 +275,11 @@ class EvaluationService:
         """Verify score consistency, determinism, stability, and risk level mapping."""
         insts = dataset.integrity_institutions or [
             {"institution_id": "eval-clean", "anomaly_score": 0.05, "signals": []},
-            {"institution_id": "eval-critical", "anomaly_score": 0.90, "signals": [
-                {"signal_name": "BACKDATED_ADMISSIONS", "severity": "error"}
-            ]},
+            {
+                "institution_id": "eval-critical",
+                "anomaly_score": 0.90,
+                "signals": [{"signal_name": "BACKDATED_ADMISSIONS", "severity": "error"}],
+            },
         ]
 
         scoring_service = IntegrityScoringService()
@@ -324,12 +325,16 @@ class EvaluationService:
             "risk_level_mapping_verified": risk_mapping_verified,
             "configurable_weights_verified": weights_behavior_verified,
             "score_stability_verified": score_stability_verified,
-            "status": "passed" if all([
-                is_deterministic,
-                risk_mapping_verified,
-                weights_behavior_verified,
-                score_stability_verified,
-            ]) else "failed",
+            "status": "passed"
+            if all(
+                [
+                    is_deterministic,
+                    risk_mapping_verified,
+                    weights_behavior_verified,
+                    score_stability_verified,
+                ]
+            )
+            else "failed",
         }
 
     def run_full_evaluation(

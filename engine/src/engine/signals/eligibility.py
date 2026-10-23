@@ -236,15 +236,9 @@ def eligibility_signal(
                 else ", ".join(v.get("student_id", "") for v in violations[:5])
             ),
             "violated_rule": (
-                first_v.get("violated_rule", "MULTIPLE_RULES")
-                if count == 1
-                else "MULTIPLE_RULES"
+                first_v.get("violated_rule", "MULTIPLE_RULES") if count == 1 else "MULTIPLE_RULES"
             ),
-            "programme": (
-                first_v.get("programme", "MULTIPLE")
-                if count == 1
-                else "MULTIPLE"
-            ),
+            "programme": (first_v.get("programme", "MULTIPLE") if count == 1 else "MULTIPLE"),
             "expected_value": first_v.get("expected_value", "") if count == 1 else "",
             "actual_value": first_v.get("actual_value", "") if count == 1 else "",
             "reason": (

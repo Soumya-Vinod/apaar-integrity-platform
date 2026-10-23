@@ -128,21 +128,10 @@ class SignalRegistry:
                 historical_stats = records
         elif isinstance(records, dict):
             admissions = (
-                records.get("admissions")
-                or records.get("records")
-                or records.get("students")
-                or []
+                records.get("admissions") or records.get("records") or records.get("students") or []
             )
-            historical_stats = (
-                records.get("historical_stats")
-                or records.get("history")
-                or []
-            )
-            seat_pools = (
-                records.get("seat_pools")
-                or records.get("pools")
-                or []
-            )
+            historical_stats = records.get("historical_stats") or records.get("history") or []
+            seat_pools = records.get("seat_pools") or records.get("pools") or []
             rules_config = {
                 **records.get("rules_config", {}),
                 **records.get("config", {}),

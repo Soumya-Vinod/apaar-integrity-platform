@@ -34,10 +34,7 @@ def zero_attrition_signal(
     if isinstance(historical_stats, dict):
         if "history" in historical_stats:
             inst_id = historical_stats.get("institution_id", "unknown")
-            rows = [
-                {"institution_id": inst_id, **item}
-                for item in historical_stats["history"]
-            ]
+            rows = [{"institution_id": inst_id, **item} for item in historical_stats["history"]]
         elif "historical_stats" in historical_stats:
             rows = list(historical_stats["historical_stats"])
         else:

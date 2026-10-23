@@ -56,8 +56,8 @@ class SignalRuleMetrics:
     signal_name: str
     total_generated: int = 0
     correctly_generated: int = 0  # True positives
-    false_signals: int = 0        # False positives
-    missed_signals: int = 0       # False negatives
+    false_signals: int = 0  # False positives
+    missed_signals: int = 0  # False negatives
     precision: float = 0.0
     recall: float = 0.0
     f1_score: float = 0.0
@@ -92,11 +92,7 @@ def compute_binary_metrics(
     total = tp + fp + tn + fn
     precision = (tp / (tp + fp)) if (tp + fp) > 0 else 0.0
     recall = (tp / (tp + fn)) if (tp + fn) > 0 else 0.0
-    f1_score = (
-        (2 * precision * recall / (precision + recall))
-        if (precision + recall) > 0
-        else 0.0
-    )
+    f1_score = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
     accuracy = ((tp + tn) / total) if total > 0 else 0.0
     fpr = (fp / (fp + tn)) if (fp + tn) > 0 else 0.0
     fnr = (fn / (tp + fn)) if (tp + fn) > 0 else 0.0
@@ -158,11 +154,13 @@ def compute_roc(
         prev_fpr = fpr
         prev_tpr = tpr
 
-        points.append({
-            "threshold": round(float(thresh), 4),
-            "fpr": round(fpr, 4),
-            "tpr": round(tpr, 4),
-        })
+        points.append(
+            {
+                "threshold": round(float(thresh), 4),
+                "fpr": round(fpr, 4),
+                "tpr": round(tpr, 4),
+            }
+        )
 
     # Ensure ending at (1.0, 1.0)
     if prev_fpr < 1.0:

@@ -139,9 +139,7 @@ def shared_contacts_signal(
         # Emit one Signal for each affected institution
         for inst_id in institutions:
             evidence: dict[str, Any] = {
-                "student_id": (
-                    students[0] if cluster_size == 1 else ", ".join(students[:5])
-                ),
+                "student_id": (students[0] if cluster_size == 1 else ", ".join(students[:5])),
                 "institution_id": inst_id,
                 "reason": (
                     f"Shared {data['contact_type']} '{data['value']}' detected across "

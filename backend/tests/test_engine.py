@@ -365,4 +365,3 @@ def test_post_evaluate_api(client):
     assert "benchmark" in data
     assert "summary" in data
     assert data["summary"]["status"] == "completed"
-

@@ -227,4 +227,3 @@ def post_evaluate(
         return report.to_dict()
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Evaluation failed: {exc}") from exc
-
