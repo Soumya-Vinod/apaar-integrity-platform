@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from app.core.config import Settings, get_settings
+from app.core.db import check_db
 from app.models.health import Health
 
 router = APIRouter(tags=["health"])
@@ -25,4 +26,6 @@ def health(settings: Settings = Depends(get_settings)) -> Health:
         engine_import_ok=engine_ok,
         engine_version=engine_version,
         version=APP_VERSION,
+        db=check_db(),
+        real_domains=sorted(settings.real_domain_set),
     )
