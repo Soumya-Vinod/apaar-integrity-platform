@@ -190,6 +190,174 @@
         }
       }
     },
+    "/engine/anomaly": {
+      "post": {
+        "tags": [
+          "engine"
+        ],
+        "summary": "Post Anomaly",
+        "description": "Execute in-memory ML anomaly detection across institutions.",
+        "operationId": "post_anomaly_engine_anomaly_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AnomalyRequest"
+                  },
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "items": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Post Anomaly Engine Anomaly Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/engine/integrity-score": {
+      "post": {
+        "tags": [
+          "engine"
+        ],
+        "summary": "Post Integrity Score",
+        "description": "Calculate in-memory Institution Integrity Score.",
+        "operationId": "post_integrity_score_engine_integrity_score_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/IntegrityScoreRequest"
+                  },
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "items": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Post Integrity Score Engine Integrity Score Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/engine/evaluate": {
+      "post": {
+        "tags": [
+          "engine"
+        ],
+        "summary": "Post Evaluate",
+        "description": "Execute complete in-memory evaluation harness and benchmarking.",
+        "operationId": "post_evaluate_engine_evaluate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Post Evaluate Engine Evaluate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "tags": [
@@ -3640,6 +3808,30 @@
         ],
         "title": "AnomalyFeature"
       },
+      "AnomalyRequest": {
+        "properties": {
+          "institutions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Institutions"
+          },
+          "features": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Features"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "AnomalyRequest",
+        "description": "Request payload for POST /engine/anomaly."
+      },
       "ApaarVerifyRequest": {
         "properties": {
           "apaar_id": {
@@ -4941,6 +5133,49 @@
           "top_signals"
         ],
         "title": "IntegrityRanking"
+      },
+      "IntegrityScoreRequest": {
+        "properties": {
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id",
+            "default": "unknown"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/Signal"
+            },
+            "type": "array",
+            "title": "Signals"
+          },
+          "anomaly_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anomaly Score"
+          },
+          "blind_matches": {
+            "items": {
+              "$ref": "#/components/schemas/MatchCase"
+            },
+            "type": "array",
+            "title": "Blind Matches"
+          },
+          "weights": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Weights"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "IntegrityScoreRequest",
+        "description": "Request payload for POST /engine/integrity-score."
       },
       "MappingRequest": {
         "properties": {

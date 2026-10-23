@@ -21,6 +21,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/engine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Engine
+         * @description Return engine metadata and configuration.
+         */
+        get: operations["get_engine_engine_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/engine/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Engine Health
+         * @description Return engine health and import status.
+         */
+        get: operations["get_engine_health_engine_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/engine/blind-match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Blind Match
+         * @description Execute in-memory privacy-preserving blind match and exact APAAR duplicate detection.
+         */
+        post: operations["post_blind_match_engine_blind_match_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/engine/signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Signals
+         * @description Execute rule-based integrity signals against institution data.
+         */
+        post: operations["post_signals_engine_signals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/engine/anomaly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Anomaly
+         * @description Execute in-memory ML anomaly detection across institutions.
+         */
+        post: operations["post_anomaly_engine_anomaly_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/engine/integrity-score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Integrity Score
+         * @description Calculate in-memory Institution Integrity Score.
+         */
+        post: operations["post_integrity_score_engine_integrity_score_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/engine/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Evaluate
+         * @description Execute complete in-memory evaluation harness and benchmarking.
+         */
+        post: operations["post_evaluate_engine_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -776,6 +916,22 @@ export interface components {
             /** Peer Median */
             peer_median: number;
         };
+        /**
+         * AnomalyRequest
+         * @description Request payload for POST /engine/anomaly.
+         */
+        AnomalyRequest: {
+            /** Institutions */
+            institutions?: {
+                [key: string]: unknown;
+            }[];
+            /** Features */
+            features?: {
+                [key: string]: unknown;
+            }[];
+        } & {
+            [key: string]: unknown;
+        };
         /** ApaarVerifyRequest */
         ApaarVerifyRequest: {
             /** Apaar Id */
@@ -936,9 +1092,48 @@ export interface components {
             /** Review Case Id */
             review_case_id?: string | null;
         };
+        /**
+         * BlindMatchRequest
+         * @description Request payload for POST /engine/blind-match.
+         */
+        BlindMatchRequest: {
+            /** Records */
+            records: components["schemas"]["BlindMatchStudentInput"][];
+            /** Threshold */
+            threshold?: number | null;
+        };
+        /**
+         * BlindMatchStudentInput
+         * @description Input student record for blind match duplicate detection.
+         */
+        BlindMatchStudentInput: {
+            /** Student Id */
+            student_id: string;
+            /** Institution Id */
+            institution_id: string;
+            /** Student Name */
+            student_name: string;
+            /** Dob */
+            dob: string;
+            /**
+             * Father Name
+             * @default
+             */
+            father_name: string;
+            /**
+             * Mother Name
+             * @default
+             */
+            mother_name: string;
+            /** Apaar Id */
+            apaar_id?: string | null;
+        };
         /** Body_upload_batch_batches_post */
         Body_upload_batch_batches_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Certificate */
@@ -1145,6 +1340,46 @@ export interface components {
             /** Encoding B64 */
             encoding_b64: string;
         };
+        /**
+         * EngineHealth
+         * @description Engine health status.
+         */
+        EngineHealth: {
+            /**
+             * Status
+             * @default ok
+             */
+            status: string;
+            /** Version */
+            version: string;
+            /**
+             * Engine Ok
+             * @default true
+             */
+            engine_ok: boolean;
+        };
+        /**
+         * EngineInfo
+         * @description Engine metadata and runtime parameters.
+         */
+        EngineInfo: {
+            /**
+             * Name
+             * @default Integrity Intelligence Engine
+             */
+            name: string;
+            /** Version */
+            version: string;
+            /**
+             * Status
+             * @default active
+             */
+            status: string;
+            /** Match Threshold */
+            match_threshold: number;
+            /** Model Version */
+            model_version: string;
+        };
         /** EnrolmentReport */
         EnrolmentReport: {
             /** Academic Year */
@@ -1260,12 +1495,68 @@ export interface components {
             /** Top Signals */
             top_signals: string[];
         };
+        /**
+         * IntegrityScoreRequest
+         * @description Request payload for POST /engine/integrity-score.
+         */
+        IntegrityScoreRequest: {
+            /**
+             * Institution Id
+             * @default unknown
+             */
+            institution_id: string;
+            /** Signals */
+            signals?: components["schemas"]["Signal"][];
+            /** Anomaly Score */
+            anomaly_score?: number | null;
+            /** Blind Matches */
+            blind_matches?: components["schemas"]["MatchCase"][];
+            /** Weights */
+            weights?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
         /** MappingRequest */
         MappingRequest: {
             /** Mapping */
             mapping: {
                 [key: string]: string;
             };
+        };
+        /**
+         * MatchCase
+         * @description Represents a potential duplicate between institutions.
+         */
+        MatchCase: {
+            /** Case Id */
+            case_id?: string;
+            /** Institution A */
+            institution_a: string;
+            /** Institution B */
+            institution_b: string;
+            /** Student A Id */
+            student_a_id: string;
+            /** Student B Id */
+            student_b_id: string;
+            /** Similarity Score */
+            similarity_score: number;
+            /** Confidence */
+            confidence: number;
+            /** Matched Fields */
+            matched_fields?: string[];
+            /**
+             * Status
+             * @default open
+             * @enum {string}
+             */
+            status: "open" | "confirmed" | "dismissed" | "correction_requested";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
         };
         /** PoolLedger */
         PoolLedger: {
@@ -1416,6 +1707,43 @@ export interface components {
             /** Programmes */
             programmes: components["schemas"]["ProgrammeLedger"][];
         };
+        /**
+         * Signal
+         * @description An integrity signal raised against an institution.
+         */
+        Signal: {
+            /** Signal Id */
+            signal_id?: string;
+            /** Institution Id */
+            institution_id: string;
+            /** Signal Name */
+            signal_name: string;
+            /**
+             * Severity
+             * @default warning
+             * @enum {string}
+             */
+            severity: "error" | "warning" | "review" | "info";
+            /**
+             * Score
+             * @default 0
+             */
+            score: number;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
+        };
         /** SignalOut */
         SignalOut: {
             /** Code */
@@ -1429,6 +1757,36 @@ export interface components {
             evidence: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * SignalsRequest
+         * @description Request payload for POST /engine/signals.
+         */
+        SignalsRequest: {
+            /** Institution Id */
+            institution_id?: string | null;
+            /** Admissions */
+            admissions?: {
+                [key: string]: unknown;
+            }[];
+            /** Records */
+            records?: {
+                [key: string]: unknown;
+            }[];
+            /** Seat Pools */
+            seat_pools?: {
+                [key: string]: unknown;
+            }[];
+            /** Historical Stats */
+            historical_stats?: {
+                [key: string]: unknown;
+            }[];
+            /** Rules Config */
+            rules_config?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
         };
         /** SsoMockRequest */
         SsoMockRequest: {
@@ -1515,10 +1873,6 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
         };
         /** ValidationIssue */
         ValidationIssue: {
@@ -1581,6 +1935,227 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    get_engine_engine_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInfo"];
+                };
+            };
+        };
+    };
+    get_engine_health_engine_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineHealth"];
+                };
+            };
+        };
+    };
+    post_blind_match_engine_blind_match_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlindMatchRequest"] | components["schemas"]["BlindMatchStudentInput"][];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchCase"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_signals_engine_signals_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignalsRequest"] | {
+                    [key: string]: unknown;
+                } | {
+                    [key: string]: unknown;
+                }[];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Signal"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_anomaly_engine_anomaly_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnomalyRequest"] | {
+                    [key: string]: unknown;
+                } | {
+                    [key: string]: unknown;
+                }[];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_integrity_score_engine_integrity_score_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntegrityScoreRequest"] | {
+                    [key: string]: unknown;
+                } | {
+                    [key: string]: unknown;
+                }[];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_evaluate_engine_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                } | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
