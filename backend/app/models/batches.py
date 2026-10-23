@@ -27,6 +27,9 @@ class Batch(BaseModel):
     status: BatchStatus
     counts: BatchCounts
     created_at: datetime
+    parent_batch_id: str | None = Field(
+        None, description="Set on a correction batch: the batch whose rejected rows it fixes"
+    )
 
 
 class BatchUploadResult(BaseModel):
@@ -52,6 +55,12 @@ class ValidationIssue(BaseModel):
     message: str
     details: dict[str, Any] = {}
     resolved: bool = False
+    resolution_note: str | None = None
+    resolved_at: datetime | None = None
+
+
+class ResolveIssueRequest(BaseModel):
+    note: str = Field(min_length=1)
 
 
 class CommitResult(BaseModel):
@@ -61,3 +70,9 @@ class CommitResult(BaseModel):
     rows_rejected: int
     rows_skipped_existing: int = 0
     review_cases_created: list[str]
+    parent_batch_id: str | None = Field(
+        None, description="Set on a correction commit: the batch whose rejected rows it fixes"
+    )
+    rows_not_matched: int = Field(
+        0, description="Correction rows that matched no rejected row of the parent batch"
+    )
