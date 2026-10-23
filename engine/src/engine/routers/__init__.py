@@ -202,3 +202,29 @@ def post_integrity_score(
         ],
     }
 
+
+@router.post("/evaluate")
+def post_evaluate(
+    body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Execute complete in-memory evaluation harness and benchmarking."""
+    from fastapi import HTTPException
+
+    from engine.evaluation.datasets import EvaluationDataset
+    from engine.evaluation.service import EvaluationService
+
+    if body is not None and not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Request payload must be a JSON object.")
+
+    try:
+        if not body:
+            dataset = EvaluationDataset.create_synthetic_benchmark_dataset()
+        else:
+            dataset = EvaluationDataset.from_dict(body)
+
+        service = EvaluationService()
+        report = service.run_full_evaluation(dataset)
+        return report.to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Evaluation failed: {exc}") from exc
+
