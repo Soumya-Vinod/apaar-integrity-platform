@@ -26,7 +26,7 @@ __all__ = [
 
 DEFAULT_FIELD_WEIGHTS: dict[str, float] = {
     "student_name": 1.0,
-    "dob": 1.0,
+    "dob": 2.0,
     "father_name": 1.0,
     "mother_name": 1.0,
 }
@@ -95,12 +95,16 @@ def derive_bit_positions(
     token: str,
     secret: bytes,
     bits: int = 1024,
-    k: int = 20,
+    k: int = 8,
 ) -> list[int]:
     """Derive `k` unique bit positions in [0, bits) using HMAC-SHA256 double hashing.
 
     Double hashing: position_i = (h1 + i * h2) mod bits.
     """
+    if not secret:
+        raise ValueError("A non-empty secret key must be provided for bit position derivation.")
+    if isinstance(secret, str):
+        secret = secret.encode("utf-8")
     digest = hmac.new(secret, token.encode("utf-8"), hashlib.sha256).digest()
     h1 = int.from_bytes(digest[:16], "big")
     # Ensure h2 is odd so gcd(h2, bits)=1 for power-of-two bit lengths
@@ -122,7 +126,7 @@ def encode_identity(
     fields: dict[str, str],
     secret: bytes,
     bits: int = 1024,
-    k: int = 20,
+    k: int = 8,
     field_weights: dict[str, float] | None = None,
     salt: str | None = None,
 ) -> bytes:
@@ -131,11 +135,16 @@ def encode_identity(
     Algorithm:
     1. Normalise each field value (lowercase, strip accents and punctuation, collapse spaces).
     2. Salt each field using the student's birth year.
-    3. Split each value into character bigrams.
+    3. Split each value into character bigrams (excluding the birth year from DOB bigrams).
     4. For each bigram, derive ``k`` bit positions with HMAC-SHA256 keyed by ``secret``
        using double hashing: position_i = (h1 + i * h2) mod bits.
     5. Set those bits and return the filter as ``bits // 8`` bytes.
     """
+    if not secret:
+        raise ValueError("A non-empty secret key must be provided for Blind Match encoding.")
+    if isinstance(secret, str):
+        secret = secret.encode("utf-8")
+
     weights = field_weights or DEFAULT_FIELD_WEIGHTS
 
     # Determine birth year salt
@@ -147,9 +156,16 @@ def encode_identity(
     bitmask = 0
 
     for raw_field_name, raw_val in fields.items():
+        if not raw_val:
+            continue
         field_key = raw_field_name.strip().lower()
         canonical_name = FIELD_ALIASES.get(field_key, field_key)
-        norm_val = normalize_text(raw_val)
+        if canonical_name == "dob":
+            # Exclude birth year from DOB bigrams; birth year is already in the salt prefix
+            val_to_bigram = re.sub(r"\b(19\d\d|20\d\d)\b", "", str(raw_val)).strip("-/ ")
+        else:
+            val_to_bigram = raw_val
+        norm_val = normalize_text(val_to_bigram)
         if not norm_val:
             continue
 
@@ -172,10 +188,13 @@ def encode_student(
     student: StudentRecord | dict[str, Any],
     secret: bytes,
     bits: int = 1024,
-    k: int = 20,
+    k: int = 8,
     field_weights: dict[str, float] | None = None,
 ) -> BloomFilter:
     """Encode a student record into a typed BloomFilter object."""
+    if not secret:
+        raise ValueError("A non-empty secret key must be provided for student encoding.")
+
     if isinstance(student, StudentRecord):
         fields = student.to_identity_fields()
         salt = student.birth_year

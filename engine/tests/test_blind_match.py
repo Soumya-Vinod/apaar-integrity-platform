@@ -359,3 +359,29 @@ def test_service_run_blind_match_pipeline() -> None:
     # Check that confidence calculation works
     assert calculate_confidence(0.95, 0.85) > 0.80
     assert calculate_confidence(0.80, 0.85) == 0.0
+
+
+def test_blind_match_service_requires_secret(monkeypatch) -> None:
+    monkeypatch.delenv("BLIND_MATCH_SECRET", raising=False)
+    with pytest.raises(ValueError, match="BLIND_MATCH_SECRET"):
+        BlindMatchService(secret=None)
+
+
+def test_blind_match_dob_year_exclusion_false_positive_rejection() -> None:
+    """Verify that different DOBs for same name fall below 0.85 threshold."""
+    # Ishita Chaudhary with different DOBs: previously scored 0.872 (false positive at 0.85)
+    f1 = {"student_name": "Ishita Chaudhary", "dob": "2008-09-11"}
+    f2 = {"student_name": "Ishita Chaudhary", "dob": "2008-03-09"}
+
+    # Name typo with same DOB: should match above 0.85
+    f3 = {"student_name": "Ishita Chadhary", "dob": "2008-09-11"}
+
+    b1 = encode_identity(f1, SECRET)
+    b2 = encode_identity(f2, SECRET)
+    b3 = encode_identity(f3, SECRET)
+
+    diff_dob_score = dice(b1, b2)
+    typo_score = dice(b1, b3)
+
+    assert diff_dob_score < 0.85  # No longer false positive!
+    assert typo_score >= 0.85  # True match still detected

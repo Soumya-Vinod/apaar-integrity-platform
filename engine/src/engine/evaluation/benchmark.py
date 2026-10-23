@@ -17,8 +17,13 @@ from engine.signals import execute_signals
 class BenchmarkRunner:
     """Measures latency, throughput, and performance of all intelligence engine components."""
 
-    def __init__(self, runs: int = 1) -> None:
+    def __init__(
+        self,
+        runs: int = 1,
+        secret: str = "benchmark-secret-key-32b-length",
+    ) -> None:
         self.runs = max(1, runs)
+        self.secret = secret
 
     def benchmark_encoding(
         self,
@@ -84,7 +89,7 @@ class BenchmarkRunner:
             for i, r in enumerate(records)
         ]
 
-        service = BlindMatchService(threshold=threshold)
+        service = BlindMatchService(secret=self.secret, threshold=threshold)
 
         latencies: list[float] = []
         matches_found = 0

@@ -107,8 +107,11 @@ class BlindMatchService:
         review_repo: ReviewCaseRepository | None = None,
         field_weights: dict[str, float] | None = None,
     ) -> None:
-        default_secret = "default-insecure-blind-match-key-32b"
-        raw_secret = secret or os.getenv("BLIND_MATCH_SECRET", default_secret)
+        raw_secret = secret or os.getenv("BLIND_MATCH_SECRET")
+        if not raw_secret:
+            raise ValueError(
+                "BlindMatchService requires a secret key. Pass `secret` or set BLIND_MATCH_SECRET."
+            )
         if isinstance(raw_secret, str):
             self.secret = raw_secret.encode("utf-8")
         else:
