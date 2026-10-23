@@ -316,6 +316,8 @@ def engine_findings(rows: list[NormalizedRow], blind_match_secret: str = "") -> 
 
 
 def _fuzzy_findings(rows: list[NormalizedRow], secret: str) -> list[Finding]:
+    if not secret:
+        return []
     import hashlib
 
     from engine.blind_match.encoder import encode_identity

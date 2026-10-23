@@ -365,3 +365,213 @@ def test_post_evaluate_api(client):
     assert "benchmark" in data
     assert "summary" in data
     assert data["summary"]["status"] == "completed"
+
+
+def test_engine_router_role_guard(client):
+    # aicte_admin is allowed
+    res_admin = client.get("/engine", headers={"X-Demo-Role": "aicte_admin"})
+    assert res_admin.status_code == 200
+
+    # Non-aicte_admin roles are rejected with 403 Forbidden
+    res_inst = client.get("/engine", headers={"X-Demo-Role": "institution_admin"})
+    assert res_inst.status_code == 403
+
+    res_student = client.get("/engine", headers={"X-Demo-Role": "student"})
+    assert res_student.status_code == 403
+
+
+def test_engine_upload_hooks_findings():
+    """Verify backend upload hooks for eligibility, backdating, and blind match."""
+    from datetime import date
+
+    from app.core.rule_codes import RuleCode
+    from app.services.ingestion import NormalizedRow
+    from app.services.validation import ValidationContext, validate_rows
+
+    ctx = ValidationContext(cutoff=date(2026, 9, 30), run_engine_hooks=True)
+    secret = "788bfbe5462dd04ff8a1c3ddda1207bf971d43e11e08d03119a5f753f5c9d268"
+
+    # Row 1: Low qualifying percentage (38% for general -> below 45% norm)
+    # Row 2: Backdated entry (admission Jan 1, upload March 1 -> delay 59 days > 30)
+    # Row 3 & 4: Ishita Chaudhary with DIFFERENT DOBs (2008-09-11 vs 2008-03-09) -> should NOT match
+    # Row 5 & 6: Same person with name typo + same DOB -> SHOULD match
+    rows = [
+        NormalizedRow(
+            row_number=1,
+            values={
+                "institution_aicte_code": "1-001",
+                "programme_code": "BTECH",
+                "academic_year": "2026-27",
+                "student_name": "Student Below Norm",
+                "dob": date(2005, 5, 10),
+                "gender": "male",
+                "category": "general",
+                "pwd": False,
+                "apaar_id": "111122223331",
+                "apaar_opt_out": False,
+                "nationality": "Indian",
+                "oci_status": False,
+                "fn_status": False,
+                "nri_category": False,
+                "seat_pool": "regular",
+                "admission_mode": "cap",
+                "admission_date": date(2026, 8, 1),
+                "qualifying_exam": "12th",
+                "qualifying_exam_pct": 38.0,
+                "domicile_state": "Delhi",
+                "upload_date": "2026-08-05",
+            },
+        ),
+        NormalizedRow(
+            row_number=2,
+            values={
+                "institution_aicte_code": "1-001",
+                "programme_code": "BTECH",
+                "academic_year": "2026-27",
+                "student_name": "Student Backdated",
+                "dob": date(2005, 5, 10),
+                "gender": "male",
+                "category": "general",
+                "pwd": False,
+                "apaar_id": "111122223332",
+                "apaar_opt_out": False,
+                "nationality": "Indian",
+                "oci_status": False,
+                "fn_status": False,
+                "nri_category": False,
+                "seat_pool": "regular",
+                "admission_mode": "cap",
+                "admission_date": date(2026, 1, 1),
+                "qualifying_exam": "12th",
+                "qualifying_exam_pct": 75.0,
+                "domicile_state": "Delhi",
+                "upload_date": "2026-04-15",
+            },
+        ),
+        NormalizedRow(
+            row_number=3,
+            values={
+                "institution_aicte_code": "1-001",
+                "programme_code": "BTECH",
+                "academic_year": "2026-27",
+                "student_name": "Ishita Chaudhary",
+                "dob": date(2008, 9, 11),
+                "gender": "female",
+                "category": "general",
+                "pwd": False,
+                "apaar_id": "111122223333",
+                "apaar_opt_out": False,
+                "nationality": "Indian",
+                "oci_status": False,
+                "fn_status": False,
+                "nri_category": False,
+                "seat_pool": "regular",
+                "admission_mode": "cap",
+                "admission_date": date(2026, 8, 1),
+                "qualifying_exam": "12th",
+                "qualifying_exam_pct": 85.0,
+                "domicile_state": "Delhi",
+                "upload_date": "2026-08-05",
+            },
+        ),
+        NormalizedRow(
+            row_number=4,
+            values={
+                "institution_aicte_code": "1-001",
+                "programme_code": "BTECH",
+                "academic_year": "2026-27",
+                "student_name": "Ishita Chaudhary",
+                "dob": date(2008, 3, 9),
+                "gender": "female",
+                "category": "general",
+                "pwd": False,
+                "apaar_id": "111122223334",
+                "apaar_opt_out": False,
+                "nationality": "Indian",
+                "oci_status": False,
+                "fn_status": False,
+                "nri_category": False,
+                "seat_pool": "regular",
+                "admission_mode": "cap",
+                "admission_date": date(2026, 8, 1),
+                "qualifying_exam": "12th",
+                "qualifying_exam_pct": 85.0,
+                "domicile_state": "Delhi",
+                "upload_date": "2026-08-05",
+            },
+        ),
+        NormalizedRow(
+            row_number=5,
+            values={
+                "institution_aicte_code": "1-001",
+                "programme_code": "BTECH",
+                "academic_year": "2026-27",
+                "student_name": "Rohan Gupta",
+                "dob": date(2005, 7, 20),
+                "gender": "male",
+                "category": "general",
+                "pwd": False,
+                "apaar_id": "111122223335",
+                "apaar_opt_out": False,
+                "nationality": "Indian",
+                "oci_status": False,
+                "fn_status": False,
+                "nri_category": False,
+                "seat_pool": "regular",
+                "admission_mode": "cap",
+                "admission_date": date(2026, 8, 1),
+                "qualifying_exam": "12th",
+                "qualifying_exam_pct": 85.0,
+                "domicile_state": "Delhi",
+                "upload_date": "2026-08-05",
+            },
+        ),
+        NormalizedRow(
+            row_number=6,
+            values={
+                "institution_aicte_code": "1-001",
+                "programme_code": "BTECH",
+                "academic_year": "2026-27",
+                "student_name": "Rohan Guptha",
+                "dob": date(2005, 7, 20),
+                "gender": "male",
+                "category": "general",
+                "pwd": False,
+                "apaar_id": "111122223336",
+                "apaar_opt_out": False,
+                "nationality": "Indian",
+                "oci_status": False,
+                "fn_status": False,
+                "nri_category": False,
+                "seat_pool": "regular",
+                "admission_mode": "cap",
+                "admission_date": date(2026, 8, 1),
+                "qualifying_exam": "12th",
+                "qualifying_exam_pct": 85.0,
+                "domicile_state": "Delhi",
+                "upload_date": "2026-08-05",
+            },
+        ),
+    ]
+
+    findings = validate_rows(rows, ctx, blind_match_secret=secret)
+
+    # 1. QUALIFYING_BELOW_NORM on row 1
+    norm_findings = [f for f in findings if f.rule_code == RuleCode.QUALIFYING_BELOW_NORM]
+    assert len(norm_findings) == 1
+    assert norm_findings[0].row_number == 1
+    assert norm_findings[0].severity == "warning"
+
+    # 2. BACKDATED_ENTRY on row 2
+    backdate_findings = [f for f in findings if f.rule_code == RuleCode.BACKDATED_ENTRY]
+    assert len(backdate_findings) == 1
+    assert backdate_findings[0].row_number == 2
+    assert backdate_findings[0].severity == "review"
+
+    # 3. Fuzzy matches: Ishita Chaudhary (different DOB) should NOT be flagged
+    # Rohan Gupta / Rohan Guptha (same DOB) SHOULD be flagged
+    fuzzy_findings = [f for f in findings if f.rule_code == RuleCode.FUZZY_MATCH_CANDIDATE]
+    assert len(fuzzy_findings) == 1
+    assert fuzzy_findings[0].row_number == 6
+    assert fuzzy_findings[0].evidence["other_row"] == 5
+    assert fuzzy_findings[0].evidence["dice"] >= 0.85

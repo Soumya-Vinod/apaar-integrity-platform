@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from app.core.config import Settings, get_settings
+from app.core.security import require_roles
 from app.models.engine import (
     AnomalyPrediction,
     AnomalyRequest,
@@ -22,7 +23,11 @@ from app.models.engine import (
     SignalsRequest,
 )
 
-router = APIRouter(prefix="/engine", tags=["engine"])
+router = APIRouter(
+    prefix="/engine",
+    tags=["engine"],
+    dependencies=[Depends(require_roles("aicte_admin"))],
+)
 
 
 @router.get("", response_model=EngineInfo)
@@ -63,6 +68,14 @@ def post_blind_match(
 ) -> list[MatchCase]:
     """Execute in-memory privacy-preserving blind match and exact APAAR duplicate detection."""
     from engine.blind_match import BlindMatchService, StudentRecord
+    from fastapi import HTTPException
+
+    secret = settings.blind_match_secret
+    if not secret:
+        raise HTTPException(
+            status_code=500,
+            detail="BLIND_MATCH_SECRET is not configured on the platform.",
+        )
 
     raw_records = body.records if isinstance(body, BlindMatchRequest) else body
     threshold = (
@@ -85,7 +98,7 @@ def post_blind_match(
     ]
 
     service = BlindMatchService(
-        secret=settings.blind_match_secret or None,
+        secret=secret,
         threshold=threshold,
     )
     matches = service.run_blind_match(students, threshold=threshold)
@@ -138,10 +151,13 @@ def post_signals(
     ]
 
 
-@router.post("/anomaly")
+@router.post(
+    "/anomaly",
+    response_model=list[AnomalyPrediction] | AnomalyPrediction,
+)
 def post_anomaly(
     body: AnomalyRequest | dict[str, Any] | list[dict[str, Any]],
-) -> Any:
+) -> list[AnomalyPrediction] | AnomalyPrediction:
     """Execute in-memory ML anomaly detection across institutions."""
     from engine.anomaly.service import AnomalyDetectionService
     from fastapi import HTTPException
@@ -188,10 +204,13 @@ def post_anomaly(
     return predictions[0] if is_single and predictions else predictions
 
 
-@router.post("/integrity-score")
+@router.post(
+    "/integrity-score",
+    response_model=IntegrityScore | list[IntegrityScore],
+)
 def post_integrity_score(
     body: IntegrityScoreRequest | dict[str, Any] | list[dict[str, Any]],
-) -> Any:
+) -> IntegrityScore | list[IntegrityScore]:
     """Calculate in-memory Institution Integrity Score."""
     from engine.scoring.service import IntegrityScoringService
     from fastapi import HTTPException
@@ -261,7 +280,7 @@ def post_integrity_score(
     )
 
 
-@router.post("/evaluate")
+@router.post("/evaluate", response_model=dict[str, Any])
 def post_evaluate(
     body: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
