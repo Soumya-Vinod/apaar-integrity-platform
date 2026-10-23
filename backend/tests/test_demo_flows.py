@@ -46,11 +46,11 @@ def _validate(rows, code, programmes, elsewhere=None):
         if elsewhere
         else None,
     )
-    return normalized, validate_rows(normalized, ctx)
+    return normalized, validate_rows(normalized, ctx, blind_match_secret=SECRET)
 
 
 @pytest.fixture
-def demo():
+def demo(fake_blind_match):
     gen = Scripted(42, set())
     meghdoot = gen.clean(MEGHDOOT, MEGHDOOT_PLAN, block=1)
     narmada = gen.clean(NARMADA, NARMADA_PLAN, block=2)

@@ -278,6 +278,8 @@ def validation_context(
         institution_code=institution["aicte_code"] if institution else None,
         programme_codes=codes,
         cross_institution_lookup=lookup,
+        match_threshold=settings.match_threshold,
+        blind_match_max_block=settings.blind_match_max_block,
     )
 
 

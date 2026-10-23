@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     admission_cutoff_date: date = date(2026, 9, 30)
     shared_contact_threshold: int = 5
     blind_match_secret: str = ""
+    # Dice similarity at or above this raises FUZZY_MATCH_CANDIDATE (shared/engine-hooks.md).
+    match_threshold: float = 0.85
+    # Most rows compared within one Blind Match DOB block; larger blocks are truncated.
+    blind_match_max_block: int = 200
     pseudonym_secret: str = ""
     credential_signing_key: str = ""
     telegram_webhook_secret: str = ""
