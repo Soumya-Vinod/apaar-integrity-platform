@@ -20,6 +20,7 @@ from app.routers import (
     blind_match,
     certificates,
     credentials,
+    engine,
     health,
     institutions,
     integrations,
@@ -77,6 +78,7 @@ async def mock_header(request: Request, call_next):
 
 for module in (
     health,
+    engine,
     auth,
     institutions,
     seat_ledger,

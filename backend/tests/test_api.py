@@ -11,6 +11,8 @@ CASE = "60000000-0000-4000-8000-000000000001"
 # Every GET endpoint, with a role allowed to call it.
 GET_ENDPOINTS = [
     ("/health", "aicte_admin"),
+    ("/engine", "aicte_admin"),
+    ("/engine/health", "aicte_admin"),
     ("/me", "aicte_admin"),
     ("/institutions", "aicte_admin"),
     (f"/institutions/{SHADOW}", "aicte_admin"),

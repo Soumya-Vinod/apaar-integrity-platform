@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     pseudonym_secret: str = ""
     credential_signing_key: str = ""
     telegram_webhook_secret: str = ""
+    model_version: str = "0.1.0"
     # X-Internal-Token for /internal/* endpoints; empty falls back to TELEGRAM_WEBHOOK_SECRET.
     internal_api_token: str = ""
     # HMAC key the per-institution outbound webhook secrets are derived from; empty falls
