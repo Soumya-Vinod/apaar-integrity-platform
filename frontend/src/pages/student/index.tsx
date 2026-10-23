@@ -10,6 +10,8 @@ type Admission = components['schemas']['Admission']
 type StudentRecords = components['schemas']['StudentRecords']
 type StudentResponseResult = components['schemas']['StudentResponseResult']
 type AccessLogEntry = components['schemas']['AccessLogEntry']
+type Consent = components['schemas']['Consent']
+type ConsentCreate = components['schemas']['ConsentCreate']
 type SharedField = 'status' | 'institution' | 'programme' | 'academic_year'
 
 const SHARED_FIELDS: { id: SharedField; label: string }[] = [
@@ -144,6 +146,7 @@ function AccessLog() {
     } finally {
       setLoading(false)
     }
+
   }
 
   useEffect(() => {
@@ -224,32 +227,154 @@ function AccessLog() {
   )
 }
 
-function MyRecords() {
-  const [records, setRecords] = useState<StudentRecords | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [respondingId, setRespondingId] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+function formatConsentDate(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString(undefined, {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
+}
 
-  async function loadRecords() {
-    setLoading(true)
-    setError(null)
+function ConsentsLoading() {
+  return (
+    <div className="space-y-3" aria-label="Loading consents">
+      {[1, 2].map((item) => <div key={item} className="h-28 animate-pulse rounded-xl bg-slate-200" />)}
+    </div>
+  )
+}
+
+interface ConsentsState {
+  consents: Consent[]
+  loading: boolean
+  error: string | null
+  onRetry: () => void
+  onConsentChange: (consentId: string, updated: Consent, wasGranted: boolean) => void
+}
+
+function Consents({ consents, loading, error, onRetry, onConsentChange }: ConsentsState) {
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  useEffect(() => {
+    if (!toast) return
+    const timeout = window.setTimeout(() => setToast(null), 3500)
+    return () => window.clearTimeout(timeout)
+  }, [toast])
+
+  async function toggleConsent(consent: Consent) {
+    const granted = !consent.revoked_at
+    setSavingId(consent.id)
+    setToast(null)
+    const request: ConsentCreate = {
+      verifier_id: consent.verifier_id,
+      purpose: consent.purpose,
+      fields: consent.fields,
+      expires_in_days: 30,
+    }
     try {
-      setRecords(await api<StudentRecords>('/students/me/records'))
-    } catch (loadError) {
-      setError(
-        loadError instanceof ApiError
-          ? `We could not load your records (${loadError.status}).`
-          : 'We could not reach your records. Please try again.',
-      )
+      const updated = await api<Consent>('/students/me/consents', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      })
+      onConsentChange(consent.id, updated, granted)
+      setToast(granted ? 'Consent withdrawn.' : 'Consent granted.')
+    } catch (saveError) {
+      setToast(saveError instanceof ApiError
+        ? `We could not update this consent (${saveError.status}).`
+        : 'We could not update this consent. Please try again.')
     } finally {
-      setLoading(false)
+      setSavingId(null)
     }
   }
 
-  useEffect(() => {
-    void loadRecords()
-  }, [])
+  function requestOptOut() {
+    if (window.confirm('Opt out of APAAR-based sharing?')) setToast('Coming soon')
+  }
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Consents</h2>
+        <p className="mt-1 text-sm text-slate-600">Control who can use your shared record.</p>
+      </div>
+      {toast && <div role="status" className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white">{toast}</div>}
+      <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-semibold text-slate-900">Opt out of APAAR-based sharing</h3>
+            <p className="mt-2 text-sm text-slate-700">
+              The Supreme Court (July 2026) requires that you can explicitly opt out of APAAR-based sharing.
+            </p>
+          </div>
+          <button type="button" onClick={requestOptOut} className="shrink-0 rounded-full bg-slate-300 px-3 py-1 text-xs font-bold text-slate-700 hover:bg-slate-400">
+            Opt out
+          </button>
+        </div>
+      </div>
+      {loading && <ConsentsLoading />}
+      {!loading && error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+          <p className="text-sm text-red-800">{error}</p>
+          <button type="button" onClick={onRetry} className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">Retry</button>
+        </div>
+      )}
+      {!loading && !error && consents.length === 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">No consents recorded yet.</div>
+      )}
+      {!loading && !error && consents.length > 0 && (
+        <div className="space-y-3">
+          {consents.map((consent) => {
+            const granted = !consent.revoked_at
+            const saving = savingId === consent.id
+            return (
+              <article key={consent.id} className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-slate-900">{consent.purpose}</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {granted ? `Granted ${formatConsentDate(consent.granted_at)}` : `Withdrawn ${formatConsentDate(consent.revoked_at ?? consent.granted_at)}`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={granted}
+                    aria-label={`${granted ? 'Withdraw' : 'Grant'} consent for ${consent.purpose}`}
+                    disabled={saving}
+                    onClick={() => void toggleConsent(consent)}
+                    className={`relative h-7 w-12 shrink-0 rounded-full transition ${granted ? 'bg-emerald-600' : 'bg-slate-300'} disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${granted ? 'left-6' : 'left-1'}`} />
+                  </button>
+                </div>
+                <span className={`mt-3 inline-block rounded-full px-2.5 py-1 text-xs font-bold ${granted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                  {saving ? 'Saving…' : granted ? 'Granted' : 'Withdrawn'}
+                </span>
+              </article>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
+interface RecordsState {
+  records: StudentRecords | null
+  loading: boolean
+  error: string | null
+  onRetry: () => void
+  onStatusChange: (admissionId: string, status: Admission['status']) => void
+}
+
+function MyRecords({ records, loading, error, onRetry, onStatusChange }: RecordsState) {
+  const [respondingId, setRespondingId] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
     if (!toast) return
@@ -269,17 +394,8 @@ function MyRecords() {
         `/students/me/admissions/${encodeURIComponent(admission.id)}/response`,
         { method: 'POST', body: JSON.stringify({ response }) },
       )
-      setRecords((current) =>
-        current
-          ? {
-              ...current,
-              admissions: current.admissions.map((item) =>
-                item.id === admission.id ? { ...item, status: result.status } : item,
-              ),
-            }
-          : current,
-      )
       setToast(response === 'confirmed' ? 'Your record was confirmed.' : 'Report sent to AICTE.')
+      onStatusChange(admission.id, result.status)
     } catch (responseError) {
       if (responseError instanceof ApiError && responseError.status === 404) {
         setToast('Coming soon')
@@ -312,7 +428,7 @@ function MyRecords() {
           <p className="text-sm text-red-800">{error}</p>
           <button
             type="button"
-            onClick={() => void loadRecords()}
+            onClick={onRetry}
             className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
           >
             Retry
@@ -383,12 +499,17 @@ function MyRecords() {
   )
 }
 
-function ShareCredential() {
+interface ShareCredentialState {
+  credential: Credential | null
+  revoked: boolean
+  onCredentialCreated: (credential: Credential) => void
+  onRevoked: () => void
+}
+
+function ShareCredential({ credential, revoked, onCredentialCreated, onRevoked }: ShareCredentialState) {
   const [recipient, setRecipient] = useState('')
   const [expiry, setExpiry] = useState('1d')
   const [fields, setFields] = useState<SharedField[]>([])
-  const [credential, setCredential] = useState<Credential | null>(null)
-  const [revoked, setRevoked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRevoking, setIsRevoking] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -420,8 +541,7 @@ function ShareCredential() {
         method: 'POST',
         body: JSON.stringify(request),
       })
-      setCredential(created)
-      setRevoked(false)
+      onCredentialCreated(created)
     } catch (submissionError) {
       setError(errorMessage(submissionError))
     } finally {
@@ -438,7 +558,7 @@ function ShareCredential() {
         method: 'POST',
         body: JSON.stringify({ reason: 'Revoked by student' }),
       })
-      setRevoked(true)
+      onRevoked()
     } catch (revokeError) {
       setError(errorMessage(revokeError))
     } finally {
@@ -586,12 +706,57 @@ function ShareCredential() {
 
 export default function StudentPage() {
   const [activeTab, setActiveTab] = useState('records')
+  const [records, setRecords] = useState<StudentRecords | null>(null)
+  const [recordsLoading, setRecordsLoading] = useState(true)
+  const [recordsError, setRecordsError] = useState<string | null>(null)
+  const [consents, setConsents] = useState<Consent[]>([])
+  const [consentsLoading, setConsentsLoading] = useState(true)
+  const [consentsError, setConsentsError] = useState<string | null>(null)
+  const [credential, setCredential] = useState<Credential | null>(null)
+  const [credentialRevoked, setCredentialRevoked] = useState(false)
   const tabs = [
     { id: 'records', label: 'My records' },
     { id: 'share', label: 'Share a credential' },
     { id: 'consents', label: 'Consents' },
     { id: 'viewed', label: 'Who viewed my record' },
   ]
+
+  async function loadRecords() {
+    setRecordsLoading(true)
+    setRecordsError(null)
+    try {
+      setRecords(await api<StudentRecords>('/students/me/records'))
+    } catch (loadError) {
+      setRecordsError(
+        loadError instanceof ApiError
+          ? `We could not load your records (${loadError.status}).`
+          : 'We could not reach your records. Please try again.',
+      )
+    } finally {
+      setRecordsLoading(false)
+    }
+  }
+
+  async function loadConsents() {
+    setConsentsLoading(true)
+    setConsentsError(null)
+    try {
+      setConsents(await api<Consent[]>('/students/me/consents'))
+    } catch (loadError) {
+      setConsentsError(
+        loadError instanceof ApiError
+          ? `We could not load your consents (${loadError.status}).`
+          : 'We could not reach your consents. Please try again.',
+      )
+    } finally {
+      setConsentsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadRecords()
+    void loadConsents()
+  }, [])
 
   return (
     <section className="space-y-6">
@@ -620,11 +785,50 @@ export default function StudentPage() {
         </div>
       </div>
       {activeTab === 'records' ? (
-        <MyRecords />
+        <MyRecords
+          records={records}
+          loading={recordsLoading}
+          error={recordsError}
+          onRetry={() => void loadRecords()}
+          onStatusChange={(admissionId, status) => {
+            setRecords((current) => current
+              ? {
+                  ...current,
+                  admissions: current.admissions.map((item) =>
+                    item.id === admissionId ? { ...item, status } : item,
+                  ),
+                }
+              : current)
+          }}
+        />
       ) : activeTab === 'share' ? (
-        <ShareCredential />
+        <ShareCredential
+          credential={credential}
+          revoked={credentialRevoked}
+          onCredentialCreated={(created) => {
+            setCredential(created)
+            setCredentialRevoked(false)
+          }}
+          onRevoked={() => setCredentialRevoked(true)}
+        />
       ) : activeTab === 'viewed' ? (
         <AccessLog />
+      ) : activeTab === 'consents' ? (
+        <Consents
+          consents={consents}
+          loading={consentsLoading}
+          error={consentsError}
+          onRetry={() => void loadConsents()}
+          onConsentChange={(consentId, updated, wasGranted) => {
+            setConsents((current) => current.map((item) => item.id === consentId
+              ? {
+                  ...updated,
+                  id: consentId,
+                  revoked_at: wasGranted ? new Date().toISOString() : updated.revoked_at,
+                }
+              : item))
+          }}
+        />
       ) : (
         <Placeholder title={tabs.find((tab) => tab.id === activeTab)?.label ?? ''} />
       )}
