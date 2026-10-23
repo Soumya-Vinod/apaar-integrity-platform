@@ -175,3 +175,132 @@ def test_post_blind_match_api_direct_list(client):
     response = client.post("/engine/blind-match", json=records)
     assert response.status_code == 200
     assert len(response.json()) == 1
+
+
+def test_post_signals_api_eligibility(client):
+    payload = {
+        "admissions": [
+            {
+                "student_id": "stud-violator",
+                "institution_id": "inst-test",
+                "programme_code": "BTECH_CSE",
+                "category": "general",
+                "qualifying_exam_pct": 35.0,  # Below 45% norm
+                "dob": "2005-01-01",
+                "admission_date": "2023-08-01",
+            }
+        ]
+    }
+    response = client.post("/engine/signals", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    sig = data[0]
+    assert sig["institution_id"] == "inst-test"
+    assert sig["signal_name"] == "ELIGIBILITY_VIOLATION"
+    assert sig["score"] >= 70.0
+    assert "evidence" in sig
+    assert sig["evidence"]["violated_rule"] == "QUALIFYING_BELOW_NORM"
+
+
+def test_post_signals_api_shared_contacts(client):
+    payload = {
+        "records": [
+            {
+                "student_id": "s1",
+                "institution_id": "inst-1",
+                "contact_phone": "9876543210",
+            },
+            {
+                "student_id": "s2",
+                "institution_id": "inst-2",
+                "contact_phone": "9876543210",
+            },
+        ]
+    }
+    response = client.post("/engine/signals", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 1
+    assert any(s["signal_name"] == "SHARED_CONTACT_CLUSTER" for s in data)
+
+
+def test_post_signals_api_backdated(client):
+    payload = {
+        "admissions": [
+            {
+                "student_id": "s-delayed",
+                "institution_id": "inst-delay",
+                "admission_date": "2023-01-01",
+                "upload_date": "2023-04-15",
+            }
+        ]
+    }
+    response = client.post("/engine/signals", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["signal_name"] == "BACKDATED_ADMISSIONS"
+    assert data[0]["evidence"]["delay"] > 30
+
+
+def test_post_signals_api_zero_attrition(client):
+    payload = {
+        "historical_stats": [
+            {
+                "institution_id": "inst-full",
+                "academic_year": "2021-22",
+                "approved_seats": 100,
+                "enrolled_students": 100,
+                "attrition_count": 0,
+            },
+            {
+                "institution_id": "inst-full",
+                "academic_year": "2022-23",
+                "approved_seats": 100,
+                "enrolled_students": 100,
+                "attrition_count": 0,
+            },
+        ]
+    }
+    response = client.post("/engine/signals", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["signal_name"] == "ZERO_ATTRITION_CAP_FILLING"
+    assert data[0]["evidence"]["utilisation"] == 1.0
+
+
+def test_post_signals_api_clean_admissions(client):
+    payload = {
+        "admissions": [
+            {
+                "student_id": "s-clean",
+                "institution_id": "inst-clean",
+                "programme_code": "BTECH",
+                "category": "general",
+                "qualifying_exam_pct": 78.0,
+                "seat_pool": "regular",
+                "dob": "2005-01-01",
+                "admission_date": "2023-08-01",
+                "upload_date": "2023-08-05",
+                "contact_phone": "9998881111",
+            }
+        ]
+    }
+    response = client.post("/engine/signals", json=payload)
+    assert response.status_code == 200
+    assert len(response.json()) == 0
+
+
+def test_post_signals_api_empty_and_direct_list(client):
+    # Empty payload
+    res1 = client.post("/engine/signals", json={})
+    assert res1.status_code == 200
+    assert res1.json() == []
+
+    # Direct list input
+    res2 = client.post("/engine/signals", json=[])
+    assert res2.status_code == 200
+    assert res2.json() == []
+

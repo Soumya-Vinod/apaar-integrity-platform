@@ -87,3 +87,16 @@ class BlindMatchRequest(BaseModel):
 
     records: list[BlindMatchStudentInput]
     threshold: float | None = None
+
+
+class SignalsRequest(BaseModel):
+    """Request payload for POST /engine/signals."""
+
+    institution_id: str | None = None
+    admissions: list[dict[str, Any]] = Field(default_factory=list)
+    records: list[dict[str, Any]] = Field(default_factory=list)
+    seat_pools: list[dict[str, Any]] = Field(default_factory=list)
+    historical_stats: list[dict[str, Any]] = Field(default_factory=list)
+    rules_config: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {"extra": "allow"}

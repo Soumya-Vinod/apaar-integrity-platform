@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 
 from app.core.config import Settings, get_settings
@@ -12,6 +14,8 @@ from app.models.engine import (
     EngineHealth,
     EngineInfo,
     MatchCase,
+    Signal,
+    SignalsRequest,
 )
 
 router = APIRouter(prefix="/engine", tags=["engine"])
@@ -96,4 +100,35 @@ def post_blind_match(
             created_at=m.created_at,
         )
         for m in matches
+    ]
+
+
+@router.post("/signals", response_model=list[Signal])
+def post_signals(
+    body: SignalsRequest | dict[str, Any] | list[dict[str, Any]],
+) -> list[Signal]:
+    """Execute rule-based integrity signals against institution data."""
+    from engine.signals import execute_signals
+
+    if isinstance(body, SignalsRequest):
+        payload: dict[str, Any] = body.model_dump()
+    elif isinstance(body, (dict, list)):
+        payload = body
+    else:
+        payload = {}
+
+    signals = execute_signals(payload)
+
+    return [
+        Signal(
+            signal_id=s.signal_id,
+            institution_id=s.institution_id,
+            signal_name=s.signal_name,
+            severity=s.severity,
+            score=s.score,
+            evidence=s.evidence,
+            description=s.description,
+            created_at=s.created_at,
+        )
+        for s in signals
     ]
