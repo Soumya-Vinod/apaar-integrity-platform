@@ -353,3 +353,16 @@ def test_post_integrity_score_api(client):
     assert data["risk_level"] in ("low", "medium", "high", "critical")
     assert "components" in data
 
+
+def test_post_evaluate_api(client):
+    response = client.post("/engine/evaluate", json={})
+    assert response.status_code == 200
+    data = response.json()
+    assert "blind_match" in data
+    assert "signals" in data
+    assert "anomaly_detection" in data
+    assert "integrity_score" in data
+    assert "benchmark" in data
+    assert "summary" in data
+    assert data["summary"]["status"] == "completed"
+
