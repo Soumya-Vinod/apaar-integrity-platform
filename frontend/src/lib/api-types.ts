@@ -750,6 +750,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Stats
+         * @description Institution, admission, open case and audit chain totals. No sign-in needed.
+         */
+        get: operations["public_stats_public_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/integrity/institutions": {
         parameters: {
             query?: never;
@@ -2129,6 +2149,24 @@ export interface components {
              * @description Standard base64 of the raw 32-byte public key
              */
             public_key_b64: string;
+        };
+        /**
+         * PublicStats
+         * @description Platform-wide aggregates for the landing page. Counts only, no names or IDs.
+         */
+        PublicStats: {
+            /** Institutions */
+            institutions: number;
+            /** Active Admissions */
+            active_admissions: number;
+            /** Open Review Cases */
+            open_review_cases: number;
+            /** Audit Chain Ok */
+            audit_chain_ok: boolean;
+            /** Audit Events */
+            audit_events: number;
+            /** Academic Year */
+            academic_year: string;
         };
         /** ResolveIssueRequest */
         ResolveIssueRequest: {
@@ -4029,6 +4067,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_stats_public_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicStats"];
                 };
             };
         };

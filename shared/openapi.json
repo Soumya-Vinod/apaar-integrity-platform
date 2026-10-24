@@ -3925,6 +3925,28 @@
         }
       }
     },
+    "/public/stats": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Public Stats",
+        "description": "Institution, admission, open case and audit chain totals. No sign-in needed.",
+        "operationId": "public_stats_public_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicStats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/integrity/institutions": {
       "get": {
         "tags": [
@@ -7989,6 +8011,45 @@
           "public_key_b64"
         ],
         "title": "PublicKey"
+      },
+      "PublicStats": {
+        "properties": {
+          "institutions": {
+            "type": "integer",
+            "title": "Institutions"
+          },
+          "active_admissions": {
+            "type": "integer",
+            "title": "Active Admissions"
+          },
+          "open_review_cases": {
+            "type": "integer",
+            "title": "Open Review Cases"
+          },
+          "audit_chain_ok": {
+            "type": "boolean",
+            "title": "Audit Chain Ok"
+          },
+          "audit_events": {
+            "type": "integer",
+            "title": "Audit Events"
+          },
+          "academic_year": {
+            "type": "string",
+            "title": "Academic Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institutions",
+          "active_admissions",
+          "open_review_cases",
+          "audit_chain_ok",
+          "audit_events",
+          "academic_year"
+        ],
+        "title": "PublicStats",
+        "description": "Platform-wide aggregates for the landing page. Counts only, no names or IDs."
       },
       "ResolveIssueRequest": {
         "properties": {
