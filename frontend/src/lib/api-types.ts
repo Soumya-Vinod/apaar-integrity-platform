@@ -474,6 +474,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/edit-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Edit Requests
+         * @description Edit requests, newest first, with the admission each one changes (APAAR masked).
+         *
+         *     aicte_admin and auditor see every institution; institution users only their own.
+         */
+        get: operations["list_edit_requests_edit_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/edit-requests/{edit_request_id}/decision": {
         parameters: {
             query?: never;
@@ -788,10 +810,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Cases */
+        /**
+         * Cases
+         * @description Institution users see only cases involving their institution, the other side hidden.
+         */
         get: operations["cases_blind_match_cases_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/blind-match/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scan
+         * @description Encode students that have no encoding yet and compare every DOB block across
+         *     institutions. Idempotent: a student pair never gets a second case.
+         */
+        post: operations["scan_admin_blind_match_scan_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -863,7 +909,9 @@ export interface paths {
         put?: never;
         /**
          * Issue Credential
-         * @description Issue an Ed25519-signed credential for one verifier. Mock returns a pre-signed demo.
+         * @description Issue an Ed25519-signed credential with the chosen claims for one audience.
+         *
+         *     The APAAR ID is never included. Writes an audit event and an access-log entry.
          */
         post: operations["issue_credential_credentials_post"];
         delete?: never;
@@ -881,7 +929,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Revoke Credential */
+        /**
+         * Revoke Credential
+         * @description Revoke one of the student's own credentials. Repeating it changes nothing.
+         */
         post: operations["revoke_credential_credentials__credential_id__revoke_post"];
         delete?: never;
         options?: never;
@@ -929,6 +980,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/credentials/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Credential
+         * @description Public (verifier or no login): check signature, expiry and revocation.
+         *
+         *     Logs the check in the student's access log (audience, purpose, time) and reveals
+         *     nothing beyond the signed claims.
+         */
+        post: operations["verify_credential_credentials_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/students/me/records": {
         parameters: {
             query?: never;
@@ -936,10 +1010,35 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** My Records */
+        /**
+         * My Records
+         * @description The student's admissions, newest first, with status. APAAR IDs are masked.
+         */
         get: operations["my_records_students_me_records_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/students/me/admissions/{admission_id}/response": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Respond
+         * @description Confirm or dispute one of the student's own admissions (channel portal).
+         *
+         *     Same rules as POST /internal/student-responses; another student's admission is 404.
+         */
+        post: operations["respond_students_me_admissions__admission_id__response_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -956,8 +1055,12 @@ export interface paths {
         /** My Consents */
         get: operations["my_consents_students_me_consents_get"];
         put?: never;
-        /** Grant Consent */
-        post: operations["grant_consent_students_me_consents_post"];
+        /**
+         * Change Consent
+         * @description Grant (or renew) or withdraw a consent. purpose 'apaar_sharing' is the opt-in to
+         *     sharing the APAAR ID with the SIMULATED APAAR systems; withdrawing it is the opt-out.
+         */
+        post: operations["change_consent_students_me_consents_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -971,7 +1074,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** My Access Log */
+        /**
+         * My Access Log
+         * @description Who looked at the student's record, newest first.
+         */
         get: operations["my_access_log_students_me_access_log_get"];
         put?: never;
         post?: never;
@@ -1312,7 +1418,11 @@ export interface components {
              */
             duplicate_upload: boolean;
         };
-        /** BlindMatchCase */
+        /**
+         * BlindMatchCase
+         * @description record_* are student ids. For institution users the other institution's side reads
+         *     'hidden' (record and institution id) with no name.
+         */
         BlindMatchCase: {
             /** Id */
             id: string;
@@ -1335,6 +1445,27 @@ export interface components {
             status: "open" | "confirmed" | "dismissed" | "correction_requested";
             /** Review Case Id */
             review_case_id?: string | null;
+            /** Institution A Name */
+            institution_a_name?: string | null;
+            /** Institution B Name */
+            institution_b_name?: string | null;
+            /** Programme A */
+            programme_a?: string | null;
+            /** Programme B */
+            programme_b?: string | null;
+            /** Academic Year A */
+            academic_year_a?: string | null;
+            /** Academic Year B */
+            academic_year_b?: string | null;
+            /**
+             * Identity Hint A
+             * @description Initials and birth year; aicte_admin and auditor only
+             */
+            identity_hint_a?: string | null;
+            /** Identity Hint B */
+            identity_hint_b?: string | null;
+            /** Created At */
+            created_at?: string | null;
         };
         /**
          * BlindMatchRequest
@@ -1345,6 +1476,17 @@ export interface components {
             records: components["schemas"]["BlindMatchStudentInput"][];
             /** Threshold */
             threshold?: number | null;
+        };
+        /** BlindMatchScanResult */
+        BlindMatchScanResult: {
+            /** Students Encoded */
+            students_encoded: number;
+            /** Candidates */
+            candidates: number;
+            /** Matches */
+            matches: number;
+            /** Cases Created */
+            cases_created: string[];
         };
         /**
          * BlindMatchStudentInput
@@ -1469,57 +1611,94 @@ export interface components {
         ConsentCreate: {
             /** Verifier Id */
             verifier_id: string;
-            /** Purpose */
+            /** Verifier Name */
+            verifier_name?: string | null;
+            /**
+             * Purpose
+             * @description 'apaar_sharing' is the APAAR sharing opt-in
+             */
             purpose: string;
             /** Fields */
-            fields: string[];
+            fields?: string[];
             /**
              * Expires In Days
              * @default 30
              */
             expires_in_days: number;
+            /**
+             * Action
+             * @description Default grant
+             */
+            action?: ("grant" | "withdraw") | null;
         };
         /** Credential */
         Credential: {
-            /** Credential Id */
-            credential_id: string;
+            /** Id */
+            id: string;
             /**
-             * Pseudonym
-             * @description Per-verifier pseudonym for the student
+             * Qr Text
+             * @description base64url JSON {payload, sig}; see shared/credentials.md
              */
-            pseudonym: string;
-            /** Payload */
-            payload: {
-                [key: string]: unknown;
-            };
-            /** Signature B64 */
-            signature_b64: string;
-            /** Key Id */
-            key_id: string;
-            /**
-             * Qr Payload
-             * @description base64url(canonical payload) + '.' + base64url(signature)
-             */
-            qr_payload: string;
+            qr_text: string;
             /**
              * Expires At
              * Format: date-time
              */
             expires_at: string;
+            /** Claims */
+            claims: {
+                [key: string]: string;
+            };
+            /**
+             * Credential Id
+             * @description Deprecated: same as id
+             */
+            credential_id: string;
+            /**
+             * Qr Payload
+             * @description Deprecated: same as qr_text
+             */
+            qr_payload: string;
         };
         /** CredentialRequest */
         CredentialRequest: {
-            /** Verifier Id */
-            verifier_id: string;
-            /** Purpose */
-            purpose: string;
-            /** Fields */
-            fields: string[];
+            /**
+             * Claims
+             * @description Claims to share (at least one)
+             */
+            claims?: ("enrolment_status" | "institution" | "programme" | "academic_year")[] | null;
+            /**
+             * Audience
+             * @description Verifier the credential is for, e.g. 'Acme Infotech'
+             */
+            audience?: string | null;
+            /** Expiry */
+            expiry?: ("15m" | "1d" | "7d") | null;
+            /**
+             * Admission Id
+             * @description Admission to describe; default the student's most recent active one
+             */
+            admission_id?: string | null;
+            /**
+             * Verifier Id
+             * @description Deprecated: use audience
+             */
+            verifier_id?: string | null;
+            /**
+             * Purpose
+             * @description Deprecated: ignored
+             */
+            purpose?: string | null;
+            /**
+             * Fields
+             * @description Deprecated: use claims
+             */
+            fields?: string[] | null;
             /**
              * Expires In Days
-             * @default 30
+             * @description Deprecated: use expiry (1 or 7)
              */
-            expires_in_days: number;
+            expires_in_days?: number | null;
         };
         /** EditDecision */
         EditDecision: {
@@ -1563,6 +1742,10 @@ export interface components {
             created_at: string;
             /** Decided At */
             decided_at?: string | null;
+            /** Institution Id */
+            institution_id?: string | null;
+            /** @description The admission it changes (APAAR masked); set by GET /edit-requests */
+            admission?: components["schemas"]["Admission"] | null;
         };
         /** EditRequestCreate */
         EditRequestCreate: {
@@ -1918,7 +2101,10 @@ export interface components {
             algorithm: "Ed25519";
             /** Key Id */
             key_id: string;
-            /** Public Key B64 */
+            /**
+             * Public Key B64
+             * @description Standard base64 of the raw 32-byte public key
+             */
             public_key_b64: string;
         };
         /** ResolveIssueRequest */
@@ -2127,14 +2313,30 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /**
+         * StudentPortalResponse
+         * @description Body of POST /students/me/admissions/{id}/response (channel is always portal).
+         */
+        StudentPortalResponse: {
+            /**
+             * Response
+             * @enum {string}
+             */
+            response: "confirmed" | "disputed";
+        };
         /** StudentProfile */
         StudentProfile: {
             /** Id */
             id: string;
             /** Full Name */
             full_name: string;
-            /** Apaar Id */
+            /**
+             * Apaar Id
+             * @description Masked as XXXX-XXXX-1234; never the full ID
+             */
             apaar_id: string | null;
+            /** Apaar Id Masked */
+            apaar_id_masked?: string | null;
             /** Provisional Id */
             provisional_id?: string | null;
             /** Opted Out */
@@ -2259,6 +2461,8 @@ export interface components {
              * @default false
              */
             demo: boolean;
+            /** Student Id */
+            student_id?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -2305,6 +2509,24 @@ export interface components {
             resolution_note?: string | null;
             /** Resolved At */
             resolved_at?: string | null;
+        };
+        /** Verification */
+        Verification: {
+            /** Valid */
+            valid: boolean;
+            /** Reason */
+            reason?: ("malformed" | "bad_signature" | "unsupported" | "expired" | "revoked") | null;
+            /** Claims */
+            claims?: {
+                [key: string]: string;
+            } | null;
+            /** Expires At */
+            expires_at?: string | null;
+        };
+        /** VerifyRequest */
+        VerifyRequest: {
+            /** Qr Text */
+            qr_text: string;
         };
         /** WebhookAck */
         WebhookAck: {
@@ -3239,6 +3461,45 @@ export interface operations {
             };
         };
     };
+    list_edit_requests_edit_requests_get: {
+        parameters: {
+            query?: {
+                status?: ("pending" | "approved" | "rejected") | null;
+                institution_id?: string | null;
+                academic_year?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditRequest"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     decide_edit_request_edit_requests__edit_request_id__decision_post: {
         parameters: {
             query?: never;
@@ -3845,6 +4106,39 @@ export interface operations {
             };
         };
     };
+    scan_admin_blind_match_scan_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlindMatchScanResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     enrolment_reports_enrolment_get: {
         parameters: {
             query?: {
@@ -3961,6 +4255,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description MOCK_MODE only: act as this student id instead of the demo one */
+                "x-demo-student"?: string | null;
                 authorization?: string | null;
                 "x-demo-role"?: string | null;
                 "x-demo-institution"?: string | null;
@@ -3998,6 +4294,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description MOCK_MODE only: act as this student id instead of the demo one */
+                "x-demo-student"?: string | null;
                 authorization?: string | null;
                 "x-demo-role"?: string | null;
                 "x-demo-institution"?: string | null;
@@ -4073,10 +4371,45 @@ export interface operations {
             };
         };
     };
+    verify_credential_credentials_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Verification"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     my_records_students_me_records_get: {
         parameters: {
             query?: never;
             header?: {
+                /** @description MOCK_MODE only: act as this student id instead of the demo one */
+                "x-demo-student"?: string | null;
                 authorization?: string | null;
                 "x-demo-role"?: string | null;
                 "x-demo-institution"?: string | null;
@@ -4106,10 +4439,53 @@ export interface operations {
             };
         };
     };
+    respond_students_me_admissions__admission_id__response_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description MOCK_MODE only: act as this student id instead of the demo one */
+                "x-demo-student"?: string | null;
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path: {
+                admission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentPortalResponse"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentResponseResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     my_consents_students_me_consents_get: {
         parameters: {
             query?: never;
             header?: {
+                /** @description MOCK_MODE only: act as this student id instead of the demo one */
+                "x-demo-student"?: string | null;
                 authorization?: string | null;
                 "x-demo-role"?: string | null;
                 "x-demo-institution"?: string | null;
@@ -4139,10 +4515,12 @@ export interface operations {
             };
         };
     };
-    grant_consent_students_me_consents_post: {
+    change_consent_students_me_consents_post: {
         parameters: {
             query?: never;
             header?: {
+                /** @description MOCK_MODE only: act as this student id instead of the demo one */
+                "x-demo-student"?: string | null;
                 authorization?: string | null;
                 "x-demo-role"?: string | null;
                 "x-demo-institution"?: string | null;
@@ -4180,6 +4558,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description MOCK_MODE only: act as this student id instead of the demo one */
+                "x-demo-student"?: string | null;
                 authorization?: string | null;
                 "x-demo-role"?: string | null;
                 "x-demo-institution"?: string | null;

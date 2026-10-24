@@ -2427,6 +2427,168 @@
         }
       }
     },
+    "/edit-requests": {
+      "get": {
+        "tags": [
+          "admissions"
+        ],
+        "summary": "List Edit Requests",
+        "description": "Edit requests, newest first, with the admission each one changes (APAAR masked).\n\naicte_admin and auditor see every institution; institution users only their own.",
+        "operationId": "list_edit_requests_edit_requests_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pending",
+                    "approved",
+                    "rejected"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "institution_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Institution Id"
+            }
+          },
+          {
+            "name": "academic_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Academic Year"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EditRequest"
+                  },
+                  "title": "Response List Edit Requests Edit Requests Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/edit-requests/{edit_request_id}/decision": {
       "post": {
         "tags": [
@@ -3860,6 +4022,7 @@
           "blind-match"
         ],
         "summary": "Cases",
+        "description": "Institution users see only cases involving their institution, the other side hidden.",
         "operationId": "cases_blind_match_cases_get",
         "parameters": [
           {
@@ -3922,6 +4085,88 @@
                     "$ref": "#/components/schemas/BlindMatchCase"
                   },
                   "title": "Response Cases Blind Match Cases Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/blind-match/scan": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Scan",
+        "description": "Encode students that have no encoding yet and compare every DOB block across\ninstitutions. Idempotent: a student pair never gets a second case.",
+        "operationId": "scan_admin_blind_match_scan_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlindMatchScanResult"
                 }
               }
             }
@@ -4257,9 +4502,27 @@
           "credentials"
         ],
         "summary": "Issue Credential",
-        "description": "Issue an Ed25519-signed credential for one verifier. Mock returns a pre-signed demo.",
+        "description": "Issue an Ed25519-signed credential with the chosen claims for one audience.\n\nThe APAAR ID is never included. Writes an audit event and an access-log entry.",
         "operationId": "issue_credential_credentials_post",
         "parameters": [
+          {
+            "name": "x-demo-student",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "MOCK_MODE only: act as this student id instead of the demo one",
+              "title": "X-Demo-Student"
+            },
+            "description": "MOCK_MODE only: act as this student id instead of the demo one"
+          },
           {
             "name": "authorization",
             "in": "header",
@@ -4349,6 +4612,7 @@
           "credentials"
         ],
         "summary": "Revoke Credential",
+        "description": "Revoke one of the student's own credentials. Repeating it changes nothing.",
         "operationId": "revoke_credential_credentials__credential_id__revoke_post",
         "parameters": [
           {
@@ -4359,6 +4623,24 @@
               "type": "string",
               "title": "Credential Id"
             }
+          },
+          {
+            "name": "x-demo-student",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "MOCK_MODE only: act as this student id instead of the demo one",
+              "title": "X-Demo-Student"
+            },
+            "description": "MOCK_MODE only: act as this student id instead of the demo one"
           },
           {
             "name": "authorization",
@@ -4487,14 +4769,75 @@
         }
       }
     },
+    "/credentials/verify": {
+      "post": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Verify Credential",
+        "description": "Public (verifier or no login): check signature, expiry and revocation.\n\nLogs the check in the student's access log (audience, purpose, time) and reveals\nnothing beyond the signed claims.",
+        "operationId": "verify_credential_credentials_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Verification"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/students/me/records": {
       "get": {
         "tags": [
           "students"
         ],
         "summary": "My Records",
+        "description": "The student's admissions, newest first, with status. APAAR IDs are masked.",
         "operationId": "my_records_students_me_records_get",
         "parameters": [
+          {
+            "name": "x-demo-student",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "MOCK_MODE only: act as this student id instead of the demo one",
+              "title": "X-Demo-Student"
+            },
+            "description": "MOCK_MODE only: act as this student id instead of the demo one"
+          },
           {
             "name": "authorization",
             "in": "header",
@@ -4568,6 +4911,125 @@
         }
       }
     },
+    "/students/me/admissions/{admission_id}/response": {
+      "post": {
+        "tags": [
+          "students"
+        ],
+        "summary": "Respond",
+        "description": "Confirm or dispute one of the student's own admissions (channel portal).\n\nSame rules as POST /internal/student-responses; another student's admission is 404.",
+        "operationId": "respond_students_me_admissions__admission_id__response_post",
+        "parameters": [
+          {
+            "name": "admission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Admission Id"
+            }
+          },
+          {
+            "name": "x-demo-student",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "MOCK_MODE only: act as this student id instead of the demo one",
+              "title": "X-Demo-Student"
+            },
+            "description": "MOCK_MODE only: act as this student id instead of the demo one"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentPortalResponse"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentResponseResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/students/me/consents": {
       "get": {
         "tags": [
@@ -4576,6 +5038,24 @@
         "summary": "My Consents",
         "operationId": "my_consents_students_me_consents_get",
         "parameters": [
+          {
+            "name": "x-demo-student",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "MOCK_MODE only: act as this student id instead of the demo one",
+              "title": "X-Demo-Student"
+            },
+            "description": "MOCK_MODE only: act as this student id instead of the demo one"
+          },
           {
             "name": "authorization",
             "in": "header",
@@ -4656,9 +5136,28 @@
         "tags": [
           "students"
         ],
-        "summary": "Grant Consent",
-        "operationId": "grant_consent_students_me_consents_post",
+        "summary": "Change Consent",
+        "description": "Grant (or renew) or withdraw a consent. purpose 'apaar_sharing' is the opt-in to\nsharing the APAAR ID with the SIMULATED APAAR systems; withdrawing it is the opt-out.",
+        "operationId": "change_consent_students_me_consents_post",
         "parameters": [
+          {
+            "name": "x-demo-student",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "MOCK_MODE only: act as this student id instead of the demo one",
+              "title": "X-Demo-Student"
+            },
+            "description": "MOCK_MODE only: act as this student id instead of the demo one"
+          },
           {
             "name": "authorization",
             "in": "header",
@@ -4748,8 +5247,27 @@
           "students"
         ],
         "summary": "My Access Log",
+        "description": "Who looked at the student's record, newest first.",
         "operationId": "my_access_log_students_me_access_log_get",
         "parameters": [
+          {
+            "name": "x-demo-student",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "MOCK_MODE only: act as this student id instead of the demo one",
+              "title": "X-Demo-Student"
+            },
+            "description": "MOCK_MODE only: act as this student id instead of the demo one"
+          },
           {
             "name": "authorization",
             "in": "header",
@@ -5600,6 +6118,107 @@
               }
             ],
             "title": "Review Case Id"
+          },
+          "institution_a_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution A Name"
+          },
+          "institution_b_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution B Name"
+          },
+          "programme_a": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Programme A"
+          },
+          "programme_b": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Programme B"
+          },
+          "academic_year_a": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Academic Year A"
+          },
+          "academic_year_b": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Academic Year B"
+          },
+          "identity_hint_a": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity Hint A",
+            "description": "Initials and birth year; aicte_admin and auditor only"
+          },
+          "identity_hint_b": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity Hint B"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
           }
         },
         "type": "object",
@@ -5613,7 +6232,8 @@
           "fields_compared",
           "status"
         ],
-        "title": "BlindMatchCase"
+        "title": "BlindMatchCase",
+        "description": "record_* are student ids. For institution users the other institution's side reads\n'hidden' (record and institution id) with no name."
       },
       "BlindMatchRequest": {
         "properties": {
@@ -5642,6 +6262,37 @@
         ],
         "title": "BlindMatchRequest",
         "description": "Request payload for POST /engine/blind-match."
+      },
+      "BlindMatchScanResult": {
+        "properties": {
+          "students_encoded": {
+            "type": "integer",
+            "title": "Students Encoded"
+          },
+          "candidates": {
+            "type": "integer",
+            "title": "Candidates"
+          },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          },
+          "cases_created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cases Created"
+          }
+        },
+        "type": "object",
+        "required": [
+          "students_encoded",
+          "candidates",
+          "matches",
+          "cases_created"
+        ],
+        "title": "BlindMatchScanResult"
       },
       "BlindMatchStudentInput": {
         "properties": {
@@ -5923,11 +6574,28 @@
         "properties": {
           "verifier_id": {
             "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
             "title": "Verifier Id"
+          },
+          "verifier_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verifier Name"
           },
           "purpose": {
             "type": "string",
-            "title": "Purpose"
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Purpose",
+            "description": "'apaar_sharing' is the APAAR sharing opt-in"
           },
           "fields": {
             "items": {
@@ -5942,94 +6610,193 @@
             "minimum": 1.0,
             "title": "Expires In Days",
             "default": 30
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "grant",
+                  "withdraw"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action",
+            "description": "Default grant"
           }
         },
         "type": "object",
         "required": [
           "verifier_id",
-          "purpose",
-          "fields"
+          "purpose"
         ],
         "title": "ConsentCreate"
       },
       "Credential": {
         "properties": {
-          "credential_id": {
+          "id": {
             "type": "string",
-            "title": "Credential Id"
+            "title": "Id"
           },
-          "pseudonym": {
+          "qr_text": {
             "type": "string",
-            "title": "Pseudonym",
-            "description": "Per-verifier pseudonym for the student"
-          },
-          "payload": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Payload"
-          },
-          "signature_b64": {
-            "type": "string",
-            "title": "Signature B64"
-          },
-          "key_id": {
-            "type": "string",
-            "title": "Key Id"
-          },
-          "qr_payload": {
-            "type": "string",
-            "title": "Qr Payload",
-            "description": "base64url(canonical payload) + '.' + base64url(signature)"
+            "title": "Qr Text",
+            "description": "base64url JSON {payload, sig}; see shared/credentials.md"
           },
           "expires_at": {
             "type": "string",
             "format": "date-time",
             "title": "Expires At"
+          },
+          "claims": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Claims"
+          },
+          "credential_id": {
+            "type": "string",
+            "title": "Credential Id",
+            "description": "Deprecated: same as id"
+          },
+          "qr_payload": {
+            "type": "string",
+            "title": "Qr Payload",
+            "description": "Deprecated: same as qr_text"
           }
         },
         "type": "object",
         "required": [
+          "id",
+          "qr_text",
+          "expires_at",
+          "claims",
           "credential_id",
-          "pseudonym",
-          "payload",
-          "signature_b64",
-          "key_id",
-          "qr_payload",
-          "expires_at"
+          "qr_payload"
         ],
         "title": "Credential"
       },
       "CredentialRequest": {
         "properties": {
+          "claims": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "enrolment_status",
+                    "institution",
+                    "programme",
+                    "academic_year"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claims",
+            "description": "Claims to share (at least one)"
+          },
+          "audience": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audience",
+            "description": "Verifier the credential is for, e.g. 'Acme Infotech'"
+          },
+          "expiry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "15m",
+                  "1d",
+                  "7d"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry"
+          },
+          "admission_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admission Id",
+            "description": "Admission to describe; default the student's most recent active one"
+          },
           "verifier_id": {
-            "type": "string",
-            "title": "Verifier Id"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verifier Id",
+            "description": "Deprecated: use audience"
           },
           "purpose": {
-            "type": "string",
-            "title": "Purpose"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose",
+            "description": "Deprecated: ignored"
           },
           "fields": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Fields"
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fields",
+            "description": "Deprecated: use claims"
           },
           "expires_in_days": {
-            "type": "integer",
-            "maximum": 365.0,
-            "minimum": 1.0,
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Expires In Days",
-            "default": 30
+            "description": "Deprecated: use expiry (1 or 7)"
           }
         },
         "type": "object",
-        "required": [
-          "verifier_id",
-          "purpose",
-          "fields"
-        ],
         "title": "CredentialRequest"
       },
       "EditDecision": {
@@ -6144,6 +6911,28 @@
               }
             ],
             "title": "Decided At"
+          },
+          "institution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution Id"
+          },
+          "admission": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Admission"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The admission it changes (APAAR masked); set by GET /edit-requests"
           }
         },
         "type": "object",
@@ -6962,7 +7751,8 @@
           },
           "public_key_b64": {
             "type": "string",
-            "title": "Public Key B64"
+            "title": "Public Key B64",
+            "description": "Standard base64 of the raw 32-byte public key"
           }
         },
         "type": "object",
@@ -7419,6 +8209,24 @@
         ],
         "title": "SsoMockResponse"
       },
+      "StudentPortalResponse": {
+        "properties": {
+          "response": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "disputed"
+            ],
+            "title": "Response"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response"
+        ],
+        "title": "StudentPortalResponse",
+        "description": "Body of POST /students/me/admissions/{id}/response (channel is always portal)."
+      },
       "StudentProfile": {
         "properties": {
           "id": {
@@ -7438,7 +8246,19 @@
                 "type": "null"
               }
             ],
-            "title": "Apaar Id"
+            "title": "Apaar Id",
+            "description": "Masked as XXXX-XXXX-1234; never the full ID"
+          },
+          "apaar_id_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apaar Id Masked"
           },
           "provisional_id": {
             "anyOf": [
@@ -7709,6 +8529,17 @@
             "type": "boolean",
             "title": "Demo",
             "default": false
+          },
+          "student_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Student Id"
           }
         },
         "type": "object",
@@ -7834,6 +8665,78 @@
           "message"
         ],
         "title": "ValidationIssue"
+      },
+      "Verification": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "malformed",
+                  "bad_signature",
+                  "unsupported",
+                  "expired",
+                  "revoked"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "claims": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claims"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid"
+        ],
+        "title": "Verification"
+      },
+      "VerifyRequest": {
+        "properties": {
+          "qr_text": {
+            "type": "string",
+            "maxLength": 8192,
+            "minLength": 1,
+            "title": "Qr Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "qr_text"
+        ],
+        "title": "VerifyRequest"
       },
       "WebhookAck": {
         "properties": {

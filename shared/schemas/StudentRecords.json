@@ -149,7 +149,20 @@
               "type": "null"
             }
           ],
+          "description": "Masked as XXXX-XXXX-1234; never the full ID",
           "title": "Apaar Id"
+        },
+        "apaar_id_masked": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Apaar Id Masked"
         },
         "provisional_id": {
           "anyOf": [

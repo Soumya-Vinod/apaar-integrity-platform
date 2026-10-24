@@ -11,6 +11,7 @@
       "type": "string"
     },
     "public_key_b64": {
+      "description": "Standard base64 of the raw 32-byte public key",
       "title": "Public Key B64",
       "type": "string"
     }

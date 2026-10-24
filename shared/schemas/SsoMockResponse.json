@@ -46,6 +46,18 @@
           "default": false,
           "title": "Demo",
           "type": "boolean"
+        },
+        "student_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Student Id"
         }
       },
       "required": [
