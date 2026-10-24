@@ -5,16 +5,36 @@ import type { components } from "../../lib/api-types";
 import { api } from "../../lib/api";
 import { useIdentity } from "../../lib/roles";
 import UploadWizard from "./UploadWizard";
+import StudentRegistry from "./StudentRegistry";
+import PostLockEditRequests from "./PostLockEditRequests";
 
 type SeatLedger = components["schemas"]["SeatLedger"];
 type ProgrammeLedger = components["schemas"]["ProgrammeLedger"];
 type PoolLedger = components["schemas"]["PoolLedger"];
+type Batch = components["schemas"]["Batch"];
+type BatchList = components["schemas"]["BatchList"];
+type ValidationIssue = components["schemas"]["ValidationIssue"];
 
 const poolLabels: Record<PoolLedger["pool"], string> = {
   regular: "Regular",
   tfw: "TFW",
   fn_oci_pio: "FN / OCI / PIO",
   nri: "NRI",
+};
+
+const statusStyles: Record<Batch["status"], string> = {
+  uploaded: "bg-slate-100 text-slate-700",
+  mapped: "bg-blue-100 text-blue-800",
+  validated: "bg-emerald-100 text-emerald-800",
+  committed: "bg-indigo-100 text-indigo-800",
+  failed: "bg-red-100 text-red-800",
+};
+
+const severityStyles: Record<ValidationIssue["severity"], string> = {
+  error: "bg-red-100 text-red-800",
+  warning: "bg-amber-100 text-amber-800",
+  review: "bg-violet-100 text-violet-800",
+  info: "bg-sky-100 text-sky-800",
 };
 
 function Metric({
@@ -34,6 +54,235 @@ function Metric({
       </p>
       <p className="mt-1 text-xs text-slate-500">{description}</p>
     </article>
+  );
+}
+
+function BatchHistory({ institutionId }: { institutionId: string }) {
+  const [offset, setOffset] = useState(0);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const limit = 10;
+
+  const batchesQuery = useQuery({
+    queryKey: ["institution-batches", institutionId, offset],
+    queryFn: () => api<BatchList>(`/batches?limit=${limit}&offset=${offset}`),
+  });
+
+  const issuesQuery = useQuery({
+    queryKey: ["batch-issues", selectedBatchId],
+    queryFn: () => api<ValidationIssue[]>(`/batches/${selectedBatchId}/issues`),
+    enabled: Boolean(selectedBatchId),
+  });
+
+  const data = batchesQuery.data;
+  const total = data?.total ?? 0;
+  const items = data?.items ?? [];
+
+  return (
+    <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Batch History
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Previous admission uploads and their validation status.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void batchesQuery.refetch()}
+          disabled={batchesQuery.isFetching}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+        >
+          {batchesQuery.isFetching ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+
+      {batchesQuery.isPending ? (
+        <p className="py-6 text-sm text-slate-500">Loading batch history…</p>
+      ) : batchesQuery.isError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p>Could not load batch history.</p>
+          <button
+            type="button"
+            onClick={() => void batchesQuery.refetch()}
+            className="mt-2 font-medium underline"
+          >
+            Retry
+          </button>
+        </div>
+      ) : items.length === 0 ? (
+        <p className="rounded-lg bg-slate-50 p-6 text-center text-sm text-slate-500">
+          No admission uploads found yet.
+        </p>
+      ) : (
+        <>
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-3 font-medium">File</th>
+                  <th className="px-3 py-3 font-medium">Status</th>
+                  <th className="px-3 py-3 text-right font-medium">Rows</th>
+                  <th className="px-3 py-3 text-right font-medium">Errors</th>
+                  <th className="px-3 py-3 text-right font-medium">Warnings</th>
+                  <th className="px-3 py-3 font-medium">Uploaded</th>
+                  <th className="px-3 py-3 font-medium">Issues</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.map((batch) => (
+                  <tr key={batch.id} className="align-top hover:bg-slate-50">
+                    <td className="max-w-64 break-words px-3 py-4">
+                      <p className="font-medium text-slate-900">
+                        {batch.file_name}
+                      </p>
+                      {batch.parent_batch_id && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Correction batch
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-3 py-4">
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-medium capitalize ${statusStyles[batch.status]}`}
+                      >
+                        {batch.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-4 text-right tabular-nums">
+                      {batch.counts.rows_total.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-4 text-right tabular-nums">
+                      {batch.counts.errors.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-4 text-right tabular-nums">
+                      {batch.counts.warnings.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-4 whitespace-nowrap text-slate-600">
+                      {new Date(batch.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-4">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedBatchId((current) =>
+                            current === batch.id ? null : batch.id,
+                          )
+                        }
+                        className="font-medium text-indigo-700 underline"
+                        aria-expanded={selectedBatchId === batch.id}
+                      >
+                        {selectedBatchId === batch.id
+                          ? "Hide issues"
+                          : "View issues"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-500">
+              Showing {offset + 1}–{offset + items.length} of {total}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={offset === 0 || batchesQuery.isFetching}
+                onClick={() =>
+                  setOffset((current) => Math.max(0, current - limit))
+                }
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={offset + limit >= total || batchesQuery.isFetching}
+                onClick={() => setOffset((current) => current + limit)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {selectedBatchId && (
+        <div className="space-y-3 rounded-lg border border-slate-200 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-semibold text-slate-900">Validation issues</h3>
+            <button
+              type="button"
+              onClick={() => setSelectedBatchId(null)}
+              className="text-sm text-slate-600 underline"
+            >
+              Close
+            </button>
+          </div>
+
+          {issuesQuery.isPending ? (
+            <p className="text-sm text-slate-500">Loading issues…</p>
+          ) : issuesQuery.isError ? (
+            <div className="text-sm text-red-800">
+              Could not load issues for this batch.
+              <button
+                type="button"
+                onClick={() => void issuesQuery.refetch()}
+                className="ml-2 underline"
+              >
+                Retry
+              </button>
+            </div>
+          ) : issuesQuery.data.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              The API returned no validation issues for this batch.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2">Row</th>
+                    <th className="px-3 py-2">Severity</th>
+                    <th className="px-3 py-2">Rule</th>
+                    <th className="px-3 py-2">Message</th>
+                    <th className="px-3 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {issuesQuery.data.map((issue) => (
+                    <tr key={issue.id} className="align-top">
+                      <td className="px-3 py-3 tabular-nums">
+                        {issue.row_number}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-medium ${severityStyles[issue.severity]}`}
+                        >
+                          {issue.severity}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 font-mono text-xs">
+                        {issue.rule_code}
+                      </td>
+                      <td className="px-3 py-3">{issue.message}</td>
+                      <td className="px-3 py-3">
+                        {issue.resolved ? "Resolved" : "Open"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -180,7 +429,18 @@ export default function InstitutionPage() {
         />
       </div>
 
+      <StudentRegistry
+        institutionId={institutionId}
+        academicYear={academicYear}
+      />
       <UploadWizard institutionId={institutionId} />
+
+      <BatchHistory institutionId={institutionId} />
+
+      <PostLockEditRequests
+        institutionId={institutionId}
+        academicYear={academicYear}
+      />
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
