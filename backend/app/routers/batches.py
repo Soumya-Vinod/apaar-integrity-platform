@@ -18,7 +18,7 @@ from app.models.batches import (
     ValidationIssue,
 )
 from app.services import batches as service
-from app.services import institutions, outbound_webhooks, realtime
+from app.services import blind_match, institutions, outbound_webhooks, realtime
 from app.services.ingestion import file_sha256, parse_upload, suggest_mapping
 
 router = APIRouter(prefix="/batches", tags=["batches"])
@@ -124,13 +124,18 @@ def _after_commit(
     background: BackgroundTasks,
     events: list[service.Event],
     webhook: tuple[str, str] | None,
+    batch_id: str,
+    settings: Settings,
 ) -> None:
-    """Broadcast, and POST batch.committed to the institution's webhook (best effort)."""
+    """Broadcast, POST batch.committed to the institution's webhook, and run the
+    cross-institution Blind Match for the batch's students (all best effort)."""
     background.add_task(realtime.publish, events)
     if webhook:
         for name, payload in events:
             if name == "batch.committed":
                 background.add_task(outbound_webhooks.deliver, *webhook, name, payload)
+    if events and settings.is_real("blind_match"):
+        background.add_task(blind_match.match_after_commit, batch_id)
 
 
 @router.post("/{batch_id}/commit", response_model=CommitResult)
@@ -153,7 +158,7 @@ def commit_batch(
                 if events and user.institution_id
                 else None
             )
-        _after_commit(background, events, webhook)
+        _after_commit(background, events, webhook, result["batch_id"], settings)
         return result
     _mock_batch(batch_id)
     return mock("commit_result")
@@ -185,7 +190,7 @@ async def upload_corrections(
                 if events and user.institution_id
                 else None
             )
-        _after_commit(background, events, webhook)
+        _after_commit(background, events, webhook, result["batch_id"], settings)
         return result
     _mock_batch(batch_id)
     result = mock("commit_result")

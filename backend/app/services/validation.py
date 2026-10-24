@@ -425,6 +425,9 @@ def _fuzzy_findings(
     for block in blocks.values():
         if len(block) < 2:
             continue
+        # Two valid APAAR IDs are never compared, so a block of only those needs no encoding.
+        if all(_APAAR_RE.fullmatch(r.values.get("apaar_id") or "") for r in block[:max_block]):
+            continue
         members = []
         for row in block[:max_block]:
             v = row.values

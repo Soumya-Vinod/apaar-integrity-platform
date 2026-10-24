@@ -427,12 +427,17 @@ def _student_record(row: NormalizedRow) -> dict[str, Any]:
     }
 
 
-def _upsert_students(conn: psycopg.Connection, rows: list[NormalizedRow]) -> dict[int, str]:
-    """Insert new students (existing ones are left unchanged); return row -> student id."""
+def _upsert_students(
+    conn: psycopg.Connection, rows: list[NormalizedRow]
+) -> tuple[dict[int, str], list[str]]:
+    """Insert new students (existing ones are left unchanged).
+
+    Returns row -> student id, and the ids of the students this call inserted.
+    """
     records = [_student_record(r) for r in rows]
     if not records:
-        return {}
-    conn.execute(
+        return {}, []
+    inserted = conn.execute(
         f"""
         insert into public.students
           (apaar_id, provisional_id, full_name, dob, gender, category, pwd, nationality,
@@ -443,9 +448,10 @@ def _upsert_students(conn: psycopg.Connection, rows: list[NormalizedRow]) -> dic
                domicile_state
         from jsonb_to_recordset(%s) as x({_STUDENT_COLUMNS})
         on conflict do nothing
+        returning id
         """,
         (Jsonb(records),),
-    )
+    ).fetchall()
     apaars = [r["apaar_id"] for r in records if r["apaar_id"]]
     provisionals = [r["provisional_id"] for r in records if r["provisional_id"]]
     found = conn.execute(
@@ -455,12 +461,13 @@ def _upsert_students(conn: psycopg.Connection, rows: list[NormalizedRow]) -> dic
     ).fetchall()
     by_apaar = {f["apaar_id"]: str(f["id"]) for f in found if f["apaar_id"]}
     by_prov = {f["provisional_id"]: str(f["id"]) for f in found if f["provisional_id"]}
-    return {
+    ids = {
         row.row_number: by_apaar[rec["apaar_id"]]
         if rec["apaar_id"]
         else by_prov[rec["provisional_id"]]
         for row, rec in zip(rows, records, strict=True)
     }
+    return ids, [str(r["id"]) for r in inserted]
 
 
 def lock_pools(
@@ -626,7 +633,11 @@ def commit(
     pools = lock_pools(conn, institution_id, years)
     used = used_seats(conn, list(programmes.values()), years)
 
-    student_ids = _upsert_students(conn, good)
+    student_ids, new_students = _upsert_students(conn, good)
+    # Blind Match encodings for new students (best effort; matching runs after the commit).
+    from app.services.blind_match import encode_new_students
+
+    encode_new_students(conn, new_students)
     admissions = []
     for row in good:
         v = row.to_json()["values"]

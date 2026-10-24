@@ -17,6 +17,9 @@ DOMAINS = (
     "review_cases",
     "audit",
     "submission_windows",
+    "blind_match",
+    "students",
+    "credentials",
 )
 
 
