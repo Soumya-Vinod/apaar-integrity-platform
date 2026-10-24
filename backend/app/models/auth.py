@@ -16,3 +16,5 @@ class User(BaseModel):
     institution_id: str | None = None
     display_name: str | None = None
     demo: bool = False
+    # Students only: the students.id this account is, from app_metadata.student_id.
+    student_id: str | None = None

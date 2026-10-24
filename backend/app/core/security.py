@@ -100,6 +100,7 @@ def _user_from_jwt(authorization: str | None, settings: Settings) -> User:
         institution_id=app_meta.get("institution_id"),
         display_name=claims.get("email"),
         demo=False,
+        student_id=app_meta.get("student_id"),
     )
 
 

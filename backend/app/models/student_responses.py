@@ -17,6 +17,12 @@ class StudentResponseRequest(BaseModel):
     channel: ResponseChannel
 
 
+class StudentPortalResponse(BaseModel):
+    """Body of POST /students/me/admissions/{id}/response (channel is always portal)."""
+
+    response: StudentResponse
+
+
 class StudentResponseResult(BaseModel):
     admission_id: str
     status: AdmissionStatus
