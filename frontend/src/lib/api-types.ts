@@ -298,7 +298,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Batches
+         * @description Batch history, newest first.
+         *
+         *     Institution users see only their own institution's batches; aicte_admin and auditor
+         *     see every institution and may filter by institution_id.
+         */
+        get: operations["list_batches_batches_get"];
         put?: never;
         /**
          * Upload Batch
@@ -1394,6 +1401,20 @@ export interface components {
              * @default 0
              */
             info: number;
+        };
+        /**
+         * BatchList
+         * @description One page of batches, newest first. total counts every match, not just this page.
+         */
+        BatchList: {
+            /** Items */
+            items: components["schemas"]["Batch"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
         };
         /** BatchUploadResult */
         BatchUploadResult: {
@@ -3096,6 +3117,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeatLedger"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_batches_batches_get: {
+        parameters: {
+            query?: {
+                status?: ("uploaded" | "mapped" | "validated" | "committed" | "failed") | null;
+                academic_year?: string | null;
+                /** @description List the correction batches of this batch */
+                parent_batch_id?: string | null;
+                /** @description aicte_admin and auditor only; ignored for institution users */
+                institution_id?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchList"];
                 };
             };
             /** @description Validation Error */
