@@ -57,6 +57,7 @@ SEED_INSTITUTIONS = {
 # supabase/seed.sql stay; institutions this script created (origin = load_demo) go last.
 RESET_TABLES = (
     "credentials",
+    "integrity_scores",
     "access_log",
     "consents",
     "telegram_links",
@@ -194,7 +195,8 @@ NARMADA_PLAN = {
 
 # The Shadow Institute of Technology CSE 2026-27 batch. Seed seats for UG-CSE are 51 regular
 # + 3 tfw + 3 fn_oci_pio + 3 nri = 60. 71 rows commit (62 regular, 3 per other pool), so the
-# regular pool runs 11 over and the programme is 71 against 60.
+# regular pool runs 11 over and the programme is 71 against 60. One regular row is a
+# misspelled copy of a Narmada CSE student with a different APAAR: one Blind Match case.
 SHADOW_STORY = {
     "admitted": 71,
     "approved": 60,
@@ -204,13 +206,31 @@ SHADOW_STORY = {
     "cross_institution": 2,
     "opted_out": 2,
     "rejected": 4,
+    "blind_match_with_narmada": 1,
 }
 SHARED_PHONE = "+919755500011"
 SHARED_EMAIL = "admissions.desk.shadow@example.com"
 AFTER_CUTOFF_DATES = ("2026-10-03", "2026-10-08", "2026-10-14")
 
 
-def shadow_rows(gen: Scripted, narmada_twins: list[dict[str, str]]) -> list[dict[str, str]]:
+def misspell(name: str) -> str:
+    """A one-letter typo: the last letter typed twice ("Aadhya Patel" -> "Aadhya Patell")."""
+    return name + name[-1]
+
+
+def typo_copy(row: dict[str, str], source: dict[str, str]) -> dict[str, str]:
+    """``row`` as the same person as ``source``: misspelled name, same DOB and guardian.
+    The APAAR ID and contacts stay ``row``'s own, so only Blind Match can link the two."""
+    return {
+        **row,
+        **{k: source[k] for k in ("dob", "gender", "category", "guardian_name")},
+        "student_name": misspell(source["student_name"]),
+    }
+
+
+def shadow_rows(
+    gen: Scripted, narmada_twins: list[dict[str, str]], narmada_typo: dict[str, str]
+) -> list[dict[str, str]]:
     """75 rows: 71 that commit and 4 with one hard error each."""
     code, state = SEED_INSTITUTIONS[SHADOW]
     block = 3
@@ -218,7 +238,7 @@ def shadow_rows(gen: Scripted, narmada_twins: list[dict[str, str]]) -> list[dict
     def regular() -> dict[str, str]:
         return gen.row(code, state, "UG-CSE", "regular", block)
 
-    plain = [regular() for _ in range(62 - 6 - 3 - 2 - 2)]
+    plain = [regular() for _ in range(62 - 6 - 3 - 2 - 2 - 1)]
     cluster = [regular() for _ in range(6)]
     for row in cluster:
         row.update(contact_phone=SHARED_PHONE, contact_email=SHARED_EMAIL)
@@ -240,6 +260,7 @@ def shadow_rows(gen: Scripted, narmada_twins: list[dict[str, str]]) -> list[dict
         ):
             row[key] = source[key]
         twins.append(row)
+    typo = [typo_copy(regular(), narmada_typo)]
     opted = [regular() for _ in range(2)]
     for n, row in enumerate(opted, start=1):
         row.update(apaar_id="", apaar_opt_out="true", provisional_id=f"PROV-{code}-{n:04d}")
@@ -248,7 +269,7 @@ def shadow_rows(gen: Scripted, narmada_twins: list[dict[str, str]]) -> list[dict
         for pool in ("tfw", "fn_oci_pio", "nri")
         for _ in range(3)
     ]
-    valid = plain + cluster + late + twins + opted + others
+    valid = plain + cluster + late + twins + typo + opted + others
     gen.rng.shuffle(valid)
 
     broken = [regular() for _ in range(4)]
@@ -507,6 +528,15 @@ def shadow_story(conn: psycopg.Connection, batch_id: str) -> dict[str, int]:
         """,
         (SHADOW, YEAR),
     ).fetchone()
+    blind_matches = conn.execute(
+        """
+        select count(*) as n from public.review_cases
+        where kind = 'blind_match'
+          and array[evidence->>'institution_a_id', evidence->>'institution_b_id']
+              @> array[%s::text, %s::text]
+        """,
+        (SHADOW, NARMADA),
+    ).fetchone()["n"]
     approved = conn.execute(
         """
         select sum(approved_seats) as seats from (
@@ -528,6 +558,7 @@ def shadow_story(conn: psycopg.Connection, batch_id: str) -> dict[str, int]:
         "signal_cases": signals,
         "opted_out": findings["APAAR_OPTED_OUT"],
         "rejected": batch["commit_result"]["rows_rejected"],
+        "blind_match_with_narmada": blind_matches,
     }
 
 
@@ -657,6 +688,32 @@ def mark_demo_student(conn: psycopg.Connection) -> str | None:
     return str(row["id"])
 
 
+def integrity_lowest() -> list[dict[str, Any]] | str:
+    """Run app.services.integrity.compute_and_save_integrity if it exists and return the 5
+    lowest-scoring institutions, or the reason it was skipped. Never raises."""
+    try:
+        from app.services import integrity
+
+        compute = getattr(integrity, "compute_and_save_integrity", None)
+        if compute is None:
+            return "app.services.integrity has no compute_and_save_integrity"
+        with transaction() as conn:
+            compute(conn)
+            return conn.execute(
+                """
+                select i.name, s.score::float as score, s.tier from (
+                  select distinct on (institution_id) institution_id, score, tier
+                  from public.integrity_scores where academic_year = %s
+                  order by institution_id, computed_at desc) s
+                join public.institutions i on i.id = s.institution_id
+                order by s.score, i.name limit 5
+                """,
+                (YEAR,),
+            ).fetchall()
+    except Exception as exc:  # noqa: BLE001 - the Integrity Score must never fail the load
+        return f"{type(exc).__name__}: {exc}"
+
+
 # ---------------------------------------------------------------------------- main
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -713,7 +770,8 @@ def main(argv: list[str] | None = None) -> int:
     meghdoot = gen.clean(MEGHDOOT, MEGHDOOT_PLAN, block=1)
     narmada = gen.clean(NARMADA, NARMADA_PLAN, block=2)
     twins = [r for r in narmada if r["programme_code"] == "UG-CSE" and r["seat_pool"] == "regular"]
-    shadow = shadow_rows(gen, twins[3:5])
+    # twins[6] is the Narmada student deck/demo/shadow-late-batch.csv misspells.
+    shadow = shadow_rows(gen, twins[3:5], twins[5])
 
     # Meghdoot, Narmada and the generated institutions first (independent ones in parallel,
     # see chains), then Shadow on its own, after Narmada, so its duplicates and story hold.
@@ -737,6 +795,7 @@ def main(argv: list[str] | None = None) -> int:
     with transaction() as conn:
         scan = blind_match.scan_all(conn)
     BROADCASTS.submit(realtime.publish, scan.pop("events", []))
+    lowest = integrity_lowest()
     truth_file = source / "ground_truth.csv"
     pairs = planted_typo_pairs(generated, read_csv(truth_file)) if truth_file.exists() else []
     with transaction() as conn:
@@ -751,7 +810,7 @@ def main(argv: list[str] | None = None) -> int:
     expected = {**SHADOW_STORY, "overrun_cases": 1, "signal_cases": 2}
     for key, value in story.items():
         mark = "ok" if expected.get(key) == value else f"EXPECTED {expected.get(key)}"
-        print(f"  {key:<18} {value:>4}  {mark}")
+        print(f"  {key:<24} {value:>4}  {mark}")
     print("\nTotals:")
     print(f"  institutions       {totals['institutions']}")
     print(f"  students           {totals['students']}")
@@ -771,6 +830,13 @@ def main(argv: list[str] | None = None) -> int:
     for key in ("precision", "recall"):
         value = quality[key]
         print(f"  {key:<18} {'n/a' if value is None else f'{value:.2f}'}")
+    print("\nIntegrity Score:")
+    if isinstance(lowest, str):
+        print(f"  integrity: skipped ({lowest})")
+    else:
+        print("  5 lowest-scoring institutions:")
+        for row in lowest:
+            print(f"  {row['score']:>6.1f}  {row['tier']:<10} {row['name']}")
     print(f"  demo student       {demo_student or 'NOT MARKED'}")
     print(f"  /audit/verify      {totals['audit_verify']}")
     print(f"  run time           {time.perf_counter() - started:.1f} s")
