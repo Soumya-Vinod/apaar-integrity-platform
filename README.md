@@ -1,94 +1,161 @@
 # APAAR Integrity Platform
 
-Verifiable, consent-first student records for AICTE-approved institutions.
+**One verified ledger of who was admitted where, built on the APAAR ID, that catches over-admission and duplicate or ghost enrolments and lets students prove their enrolment without exposing their identity.**
 
-SIH 2026 · Problem Statement 26263 · AICTE Regulation Bureau
+SIH 2026 · Problem Statement **26263** · AICTE: APAAR ID-based student data management and verification
 
-## Summary
+| | |
+| --- | --- |
+| Web app | https://apaar-integrity-platform.vercel.app |
+| API health | https://apaar-integrity-platform.onrender.com/health |
+| API docs | https://apaar-integrity-platform.onrender.com/docs |
 
-AICTE needs an APAAR ID-based student data management and verification platform. After admissions close, institutions upload student-level admission data. The platform validates it (missing or invalid APAAR, duplicates, admissions over approved intake, inconsistent data, duplicate enrolment across institutions). It gives AICTE and institutions real-time dashboards, offers consent-based verification to employers and regulators, generates verifiable student records and certificates that show the APAAR ID next to the student ID, and exposes integration APIs.
+> The API runs on Render's free tier. The first request after a quiet spell can take about 30 s while it wakes up.
 
-Pipeline:
+## The problem
 
-**Institution → Student Data Upload → APAAR Validation → Data Verification → AICTE Central Repository → Analytics & Monitoring → Authorized Verification**
+- Institutions admit more students than AICTE approved, and the overrun only shows up long after the fact.
+- The same student is enrolled at two institutions, or a "ghost" student fills a seat. Across institutions, nobody sees both records.
+- Admissions are backdated to fit within deadlines.
+- Students have no trusted way to prove their enrolment to an employer or regulator without handing over their whole record.
 
-Key features:
+## What it does
 
-- **Seat Ledger**: approved intake split into pools per programme and academic year (`regular`, `tfw`, `fn_oci_pio`, `nri`). Each admission consumes a seat at commit; an overrun raises a review case.
-- **Integrity engine**: rule signals, Isolation Forest ranking of institutions, Integrity Score 0–100.
-- **Blind Match**: privacy-preserving fuzzy duplicate detection on Bloom-filter encodings of identity fields.
-- **Hash-chained audit log** with tamper detection.
-- **Student side**: consent ledger, access log, Ed25519-signed credential QR with per-verifier pseudonyms, offline verifier app, Telegram "Is this you?" confirmations.
-- **Reports and certificates**: PDF/XLSX reports; certificates with APAAR ID, student ID and a verify QR.
-- **Opted-out students** (no APAAR) get a provisional ID and are never treated as errors.
+The app has one screen per role (institution, AICTE, Blind Match, student, verifier). Switch roles from the header.
 
-Anything that stands in for a government system (APAAR, ABC, DigiLocker, AICTE portal SSO) is labelled `SIMULATED`.
+| Feature | Where a judge sees it |
+| --- | --- |
+| **Seat Ledger**: approved intake per programme and year, split into seat pools (`regular`, `tfw`, `fn_oci_pio`, `nri`). Each committed admission consumes a seat, and an overrun opens a review case automatically. | Institution dashboard |
+| **Upload, validate, commit**: CSV or XLSX upload, suggested column mapping, validation against [`shared/rule-codes.md`](shared/rule-codes.md) (APAAR format, duplicates, unknown programme, invalid dates, admissions after the cutoff), then a single-transaction commit. Rejected rows are fixed by re-uploading corrections. | Institution dashboard → upload wizard |
+| **Review and exception queue**: intake overruns, cross-institution duplicates and Blind Match pairs become review cases. AICTE decides each one with a mandatory note. | AICTE dashboard → Exception queue |
+| **Integrity Score**: rule signals plus an Isolation Forest anomaly score combine into a 0–100 score per institution. The ranking shows the top signals and an anomaly explanation for each institution. | AICTE dashboard → Integrity Score rankings |
+| **Blind Match**: cross-institution fuzzy duplicate detection. Name, DOB and guardian are encoded as keyed (HMAC) Bloom filters, candidates are blocked on a keyed DOB block, and pairs are scored with the Dice coefficient. Only encodings are compared; no raw identity is shared between institutions. | Blind Match screen |
+| **Student portal**: the student sees their admissions with a masked APAAR ID and confirms or disputes each one. A dispute opens an AICTE case. The portal also has a consent ledger and an access log showing who looked at the record. | Student screen |
+| **APAAR opt-out**: a student without APAAR gets a provisional ID (`PROV-<institution>-<n>`) at upload. This is an info finding, never an error, and never blocks the admission. | Institution dashboard → upload wizard, student registry |
+| **Signed credentials**: the student issues an Ed25519-signed credential with only the claims they choose, for one verifier audience, under a per-verifier pseudonym. The credential is shown as a QR code. Verifiers scan or paste it and can verify it offline against the public key. The student can revoke it, and the verifier checks the revocation list. | Student → Share; Verifier screen |
+| **Hash-chained audit log**: every state change is chained by hash, and one click recomputes the chain and reports the first broken event. | AICTE dashboard → Audit-chain verification |
+| **Submission windows and post-lock edits**: AICTE opens and locks an upload window per academic year. Outside it, uploads are refused with `SUBMISSION_WINDOW_CLOSED`. After lock, changes go through edit requests that AICTE approves or rejects. | Institution dashboard → post-lock edit requests |
+| **Institution API keys and signed webhooks**: institution systems upload and commit with `X-API-Key`. The platform sends a `batch.committed` webhook signed with HMAC-SHA256 (`X-Signature`). See [`shared/integration-api.md`](shared/integration-api.md). | API only (`/docs`) |
+| **Realtime events**: each commit, new case and decision is broadcast on a Supabase Realtime channel ([`shared/events.md`](shared/events.md)). | Backend broadcast; `scripts.realtime_probe` |
+| **Reports**: enrolment report (by state, programme, category or gender) and per-institution accreditation summary, as JSON, PDF or XLSX. | AICTE dashboard → reports |
 
-## Git policy
+## Architecture
 
-1. **No git write commands. Ever.** Do not run `git add`, `git add .`, `commit`, `push`, `pull`, `fetch`, `merge`, `rebase`, `reset`, `restore`, `checkout`, `switch`, `stash`, `tag`, `rm`, `mv`, `init`, `clone`, `config`, or anything else that changes git state, history or configuration. Read-only git (`status`, `diff`, `log`, `show`) is fine. Humans stage, commit and push everything themselves. This rule applies to every AI tool used on this repo: Claude Code, Google Antigravity, Gemini, GitHub Copilot, Cursor, Codex and any other.
-2. **No AI attribution anywhere.** Never write `Co-Authored-By`, `Claude-Session`, "Generated with Claude Code", or any other AI attribution or trailer, in commit messages, PR descriptions, file headers, code comments or docs. At the end, give Sam the file list grouped into suggested commits, each with a plain one-line commit message and nothing else.
-
-Each teammate runs this once after cloning to enable the commit-message hook that blocks AI attribution lines:
-
-```sh
-git config core.hooksPath .githooks
+```mermaid
+flowchart LR
+    U["Institutions, AICTE,<br/>students, verifiers"] --> FE["React + Vite + TypeScript<br/>(Vercel)"]
+    EXT["Institution systems<br/>(X-API-Key)"] --> API
+    FE -->|REST| API["FastAPI backend<br/>(Render)"]
+    API --> ENG["engine package<br/>signals, Isolation Forest,<br/>Integrity Score, Blind Match"]
+    API -->|SQL| DB[("Supabase Postgres")]
+    API -->|broadcast| RT["Supabase Realtime"]
+    API -->|signed webhook| EXT
+    API -. "domains not in REAL_DOMAINS" .-> FX["JSON fixtures"]
+    DG["datagen<br/>synthetic data with<br/>planted anomalies"] -->|load_demo| API
 ```
 
-## Folder map
+## Privacy and security by design
 
-| Folder | What it holds | Owner |
-| --- | --- | --- |
-| `engine/` | Integrity engine: rule signals, Isolation Forest, Integrity Score, Blind Match | Dev A |
-| `backend/` | FastAPI service, mock mode, audit chain, contract export | Dev B (integrity and blind-match routers: Dev A; reports and certificates routers: Dev C; credentials, students and webhooks routers: Dev E) |
-| `supabase/` | Postgres migrations and seed | Dev B |
-| `shared/` | Contracts: CSV templates, rule codes, realtime events, OpenAPI and JSON Schemas | Dev B |
-| `datagen/` | Synthetic data generator with planted anomalies | Dev C |
-| `reports/` | Report and certificate templates | Dev C |
-| `frontend/` | React + Vite + TypeScript + Tailwind v4 app | Dev D (institution, aicte, blindmatch pages, components), Dev E (student, verifier pages) |
-| `bot/` | Telegram bot for "Is this you?" confirmations | Dev E |
-| `deck/` | Presentation material | Presenter |
-| `scripts/` | Dev helper scripts | Dev B |
+- **APAAR is masked everywhere** in API responses (`XXXX-XXXX-1234`).
+- **Opting out of APAAR never blocks a student.** They get a provisional ID, and the upload records an info finding, not an error.
+- **No Aadhaar is stored or logged.** Phone numbers and emails are HMAC-hashed on arrival and never stored raw.
+- **Pseudonymous credentials.** Each verifier sees a different pseudonym and only the claims the student chose to share. Credentials can be revoked.
+- **Blind Match is keyed.** Bloom encodings and block keys are made with a server-side secret, so encodings cannot be linked back to identities without that key.
+- **Tamper-evident audit.** Audit events are hash-chained, and `GET /audit/verify` detects any edit (demo: `scripts.tamper_demo`).
+- **Role scoping.** Institution users see and write only their own institution's rows; `aicte_admin` and `auditor` see everything. Row-level security is enabled on every table, and the database is reached only through the backend.
 
-## Quick start
+## Real vs simulated
 
-Requirements: Python 3.12 via [uv](https://docs.astral.sh/uv/), Node 20+ with npm. On Windows, use PowerShell.
+- **All data is synthetic.** Fixture APAAR IDs start with `9999`; phones are `+9196…`/`+9197…` and emails use `@example.com`.
+- **Government systems are simulated.** Anything standing in for APAAR, ABC, DigiLocker or AICTE portal SSO is labelled `SIMULATED` in code, API and UI.
+- **Per-domain data source.** `REAL_DOMAINS` decides which domains are served from Postgres. All others fall back to JSON fixtures. Every response carries `X-Mock: true|false`, and the UI shows a `MOCK` badge when the data came from fixtures.
+- **Demo login.** `MOCK_MODE=true` lets you pick a role from the header (`X-Demo-Role`). Real Supabase token verification (JWKS ES256/RS256, or HS256) is implemented but switched off for the demo.
+- **Live on the deployed site** (from `/health`, 24 Oct 2026):
+  - Served from Postgres: `institutions`, `seat_ledger`, `batches`, `admissions`, `review_cases`, `audit`, `submission_windows`, `blind_match`, `students`, `credentials`, `integrity`.
+  - Still on fixtures: `reports`, `certificates`.
 
-Copy the relevant block of `.env.example` into `backend/.env`, `frontend/.env` and `bot/.env`. Everything works in mock mode without Supabase.
+## Evaluation
 
-```sh
-# Backend (http://localhost:8000, docs at /docs)
+### Detection results
+
+> TODO: fill in from a `load_demo` run against datagen ground truth (`ground_truth.csv`).
+
+| Signal | Precision | Recall | Planted cases |
+| --- | --- | --- | --- |
+| Intake overrun | TODO | TODO | TODO |
+| Cross-institution duplicate (same APAAR) | TODO | TODO | TODO |
+| Blind Match (typo duplicates) | TODO | TODO | TODO |
+| Shared contact cluster | TODO | TODO | TODO |
+| Backdated admission | TODO | TODO | TODO |
+
+`load_demo` prints Blind Match precision and recall against the planted `typo_duplicate` pairs.
+
+### Scripted demo: Shadow Institute of Technology
+
+A 75-row upload, loaded by `load_demo`, that should produce exactly:
+
+- one `intake_overrun` case (overrun 11)
+- 2 cross-institution duplicate cases
+- 1 Blind Match case with Narmada
+- a shared-contact cluster of 6
+- 3 late admissions
+- 2 APAAR opt-outs
+- 4 rejected rows
+
+The script exits non-zero if any of these is off. Details: [`backend/scripts/README.md`](backend/scripts/README.md).
+
+## Run locally (PowerShell)
+
+Requirements: Python 3.12 via [uv](https://docs.astral.sh/uv/), Node 20+. Copy the relevant blocks of [`.env.example`](.env.example) into `backend/.env` and `frontend/.env` and fill in your own values. With an empty `REAL_DOMAINS`, everything runs on fixtures without a database.
+
+```powershell
+# Backend: http://localhost:8000 (docs at /docs)
 cd backend
 uv sync
 uv run uvicorn app.main:app --reload --port 8000
 
-# Frontend (http://localhost:5173)
+# Frontend: http://localhost:5173 (in a second terminal)
 cd frontend
 npm install
 npm run dev
 
-# Engine tests
-cd engine
-uv run pytest
-
-# Synthetic data (writes datagen/out/)
-cd datagen
-uv run python generate.py --small
-
-# Telegram bot (needs TELEGRAM_BOT_TOKEN)
-cd bot
-uv run python main.py
+# Optional: load the demo dataset into Postgres (needs DATABASE_URL, PSEUDONYM_SECRET, BLIND_MATCH_SECRET)
+cd backend
+uv run python -m scripts.load_demo --reset --yes
 ```
 
-To start backend and frontend together on Windows: `./scripts/dev.ps1`.
+`./scripts/dev.ps1` starts backend and frontend together. Tests: `uv run pytest` in `backend/` and `engine/`. More detail is in [`backend/README.md`](backend/README.md).
 
-After any backend model or endpoint change, regenerate contracts and frontend types:
+## Repo layout
+
+| Folder | Contents |
+| --- | --- |
+| `frontend/` | React + Vite + TypeScript + Tailwind v4 app, one page per role |
+| `backend/` | FastAPI service: ingestion, validation, Seat Ledger, review cases, audit chain, credentials, contract export |
+| `engine/` | Integrity engine: rule signals, Isolation Forest, Integrity Score, Blind Match, evaluation harness |
+| `supabase/` | Postgres migrations and seed data |
+| `shared/` | Contracts: CSV templates, rule codes, events, credential and integration specs, OpenAPI and JSON Schemas |
+| `datagen/` | Synthetic data generator with planted anomalies and ground truth |
+| `reports/` | Report and certificate templates |
+| `bot/` | Telegram bot for "Is this you?" confirmations (placeholder) |
+| `deck/` | Presentation and demo files |
+| `scripts/` | Dev helper scripts |
+| `docs/` | Team setup notes |
+
+## Team
+
+| Member | Role | GitHub |
+| --- | --- | --- |
+| Dev A | Integrity engine, Integrity Score and Blind Match | [@chinmay161](https://github.com/chinmay161) |
+| Dev B | Backend, database, contracts, bot | [@Soumya-Vinod](https://github.com/Soumya-Vinod) |
+| Dev C | Synthetic data, reports and certificates | TODO |
+| Dev D | Institution, AICTE and Blind Match screens | [@annieoverthere](https://github.com/annieoverthere) |
+| Dev X | Student and verifier screens, deck | [@bhumit1204](https://github.com/bhumit1204) |
+
+## Contributing
+
+Team rules are in [`AGENTS.md`](AGENTS.md). After cloning, enable the commit-message hook once:
 
 ```sh
-cd backend && uv run python -m scripts.export_contracts
-cd ../frontend && npm run gen:api
+git config core.hooksPath .githooks
 ```
-
-## Data
-
-All data in this repo is synthetic. No real student, institution or Aadhaar data is ever stored or logged. APAAR IDs in fixtures start with `9999` so they are obviously fake. Phone numbers and emails are hashed before storage.
