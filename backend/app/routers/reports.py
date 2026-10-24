@@ -1,10 +1,6 @@
 # Owner: Dev C
 from __future__ import annotations
 
-from functools import lru_cache
-from importlib.util import module_from_spec, spec_from_file_location
-from pathlib import Path
-
 import pandas as pd
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
@@ -16,15 +12,21 @@ from app.mocks import mock, not_found
 from app.models.auth import User
 from app.models.common import ReportFormat
 from app.models.reports import AccreditationReport, EnrolmentReport, GroupBy
+from app.services import integrity_store
+from app.services import report_aggregations as aggregations
+from app.services.institutions import get_institution
 from app.services.reports import to_pdf, to_xlsx
 
 router = APIRouter(
     prefix="/reports",
     tags=["reports"],
 )
-READERS = require_roles("aicte_admin", "auditor", "institution_admin")
+# Enrolment is AICTE-wide, so institution users may only read their own accreditation report.
+ENROLMENT_READERS = require_roles("aicte_admin", "auditor")
+ACCREDITATION_READERS = require_roles("aicte_admin", "auditor", "institution_admin")
 REAL = source("reports")
 ACADEMIC_YEAR = "2026-27"
+NOT_COMPUTED = f"Integrity score not yet computed for {ACADEMIC_YEAR}"
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 FILE_RESPONSES = {
@@ -35,12 +37,14 @@ FILE_RESPONSES = {
 }
 
 
-def _file(name: str, fmt: str, title: str, rows: list[dict]) -> Response:
+def _file(
+    name: str, fmt: str, title: str, rows: list[dict], summary: list[str] | None = None
+) -> Response:
     if fmt == "xlsx":
         body, media = to_xlsx(rows), XLSX
     else:
         lines = [", ".join(f"{k}: {v}" for k, v in r.items()) for r in rows]
-        body, media = to_pdf(title, lines), "application/pdf"
+        body, media = to_pdf(title, [*(summary or []), *lines]), "application/pdf"
     return Response(
         body,
         media_type=media,
@@ -48,74 +52,43 @@ def _file(name: str, fmt: str, title: str, rows: list[dict]) -> Response:
     )
 
 
-@lru_cache
-def _aggregations():
-    """Load Dev C's workspace data layer without importing or changing other backend modules."""
-    path = Path(__file__).resolve().parents[3] / "reports" / "aggregations.py"
-    spec = spec_from_file_location("apaar_report_aggregations", path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Report aggregation module is unavailable")
-    module = module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def _frame(rows: list[dict], columns: list[str]) -> pd.DataFrame:
     return pd.DataFrame([dict(row) for row in rows], columns=columns)
 
 
-def _enrolment_report(conn, group_by: GroupBy, institution_id: str | None) -> dict:
+def _enrolment_report(conn, group_by: GroupBy) -> dict:
     rows = conn.execute(
         """
-        select a.id as admission_id, a.programme_id, p.code as programme_code,
-               i.state, s.category, s.gender, s.opted_out, a.active
+        select p.code as programme_code, i.state, s.category, s.gender, s.opted_out
         from public.admissions a
         join public.students s on s.id = a.student_id
         join public.programmes p on p.id = a.programme_id
         join public.institutions i on i.id = p.institution_id
-        where a.academic_year = %s
-          and (%s::uuid is null or p.institution_id = %s::uuid)
+        where a.active and a.academic_year = %s
         """,
-        (ACADEMIC_YEAR, institution_id, institution_id),
+        (ACADEMIC_YEAR,),
     ).fetchall()
-    admissions = _frame(
-        rows,
-        [
-            "admission_id",
-            "programme_id",
-            "programme_code",
-            "state",
-            "category",
-            "gender",
-            "opted_out",
-            "active",
-        ],
-    )
-    grouped = _aggregations().enrolment_rows(admissions, group_by)
-    report_rows = grouped.to_dict("records")
+    admissions = _frame(rows, ["programme_code", "state", "category", "gender", "opted_out"])
+    grouped = aggregations.enrolment_rows(admissions, group_by)
     return {
         "academic_year": ACADEMIC_YEAR,
         "group_by": group_by,
         "total": int(grouped["admissions"].sum()) if not grouped.empty else 0,
-        "rows": report_rows,
+        "rows": grouped.to_dict("records"),
     }
 
 
-def _accreditation_report(conn, institution_id: str) -> dict:
-    institution = conn.execute(
-        "select id as institution_id, name as institution_name from public.institutions where id = %s",
-        (institution_id,),
-    ).fetchone()
-    if institution is None:
-        raise not_found("Institution", institution_id)
+def _accreditation_report(conn, institution_id: str, user: User) -> dict:
+    # Scopes to the user's institution and 404s unknown or malformed ids.
+    institution = get_institution(conn, institution_id, user)
     admissions_rows = conn.execute(
         """
-        select a.id as admission_id, a.programme_id, p.code as programme_code,
-               s.category, s.gender, s.opted_out, s.apaar_id, a.active
+        select a.programme_id, p.code as programme_code, s.category,
+               (s.apaar_id is not null) as has_apaar
         from public.admissions a
         join public.students s on s.id = a.student_id
         join public.programmes p on p.id = a.programme_id
-        where p.institution_id = %s and a.academic_year = %s
+        where a.active and p.institution_id = %s and a.academic_year = %s
         """,
         (institution_id, ACADEMIC_YEAR),
     ).fetchall()
@@ -129,16 +102,7 @@ def _accreditation_report(conn, institution_id: str) -> dict:
         """,
         (institution_id, ACADEMIC_YEAR),
     ).fetchall()
-    score = conn.execute(
-        """
-        select score from public.integrity_scores
-        where institution_id = %s and academic_year = %s
-        order by computed_at desc limit 1
-        """,
-        (institution_id, ACADEMIC_YEAR),
-    ).fetchone()
-    if score is None:
-        raise not_found("Integrity score", f"{institution_id}/{ACADEMIC_YEAR}")
+    score = integrity_store.latest_for(conn, institution_id, ACADEMIC_YEAR)
     review_cases = conn.execute(
         """
         select count(*) as n from public.review_cases
@@ -148,35 +112,25 @@ def _accreditation_report(conn, institution_id: str) -> dict:
         (institution_id, ACADEMIC_YEAR),
     ).fetchone()
     admissions = _frame(
-        admissions_rows,
-        [
-            "admission_id",
-            "programme_id",
-            "programme_code",
-            "category",
-            "gender",
-            "opted_out",
-            "apaar_id",
-            "active",
-        ],
+        admissions_rows, ["programme_id", "programme_code", "category", "has_apaar"]
     )
     intake = _frame(
         intake_rows,
         ["programme_id", "programme_code", "pool", "approved_seats", "rule_version"],
     )
-    active = admissions.loc[admissions["active"].fillna(False).astype(bool)]
     apaar_coverage = 0.0
-    if not active.empty:
-        has_apaar = active["apaar_id"].fillna("").astype(str).str.strip().ne("")
-        apaar_coverage = round(100 * int(has_apaar.sum()) / len(active), 1)
-    return _aggregations().accreditation_report(
-        dict(institution),
+    if not admissions.empty:
+        with_apaar = int(admissions["has_apaar"].fillna(False).astype(bool).sum())
+        apaar_coverage = round(100 * with_apaar / len(admissions), 1)
+    return aggregations.accreditation_report(
+        {"institution_id": institution["id"], "institution_name": institution["name"]},
         admissions,
         intake,
         academic_year=ACADEMIC_YEAR,
-        integrity_score=float(score["score"]),
+        integrity_score=score["score"] if score else None,
         apaar_coverage_pct=apaar_coverage,
         open_review_cases=int(review_cases["n"]),
+        integrity_note=None if score else NOT_COMPUTED,
     )
 
 
@@ -184,17 +138,13 @@ def _accreditation_report(conn, institution_id: str) -> dict:
 def enrolment(
     group_by: GroupBy = Query("state"),
     format: ReportFormat = Query("json"),
-    user: User = Depends(READERS),
+    user: User = Depends(ENROLMENT_READERS),
     real: bool = Depends(REAL),
 ):
     if real:
         with transaction() as conn:
-            report = _enrolment_report(conn, group_by, scoped_institution(user))
+            report = _enrolment_report(conn, group_by)
     else:
-        if user.role == "institution_admin":
-            from fastapi import HTTPException
-
-            raise HTTPException(403, "Institution enrolment reports are unavailable in mock mode")
         report = mock("enrolment_report")[group_by]
     if format == "json":
         return report
@@ -210,18 +160,24 @@ def enrolment(
 def accreditation(
     institution_id: str,
     format: ReportFormat = Query("json"),
-    user: User = Depends(READERS),
+    user: User = Depends(ACCREDITATION_READERS),
     real: bool = Depends(REAL),
 ):
-    scoped_id = scoped_institution(user, institution_id)
+    institution_id = scoped_institution(user, institution_id)
     if real:
         with transaction() as conn:
-            report = _accreditation_report(conn, scoped_id or institution_id)
+            report = _accreditation_report(conn, institution_id, user)
     else:
-        report = mock("accreditation").get(scoped_id or institution_id)
+        report = mock("accreditation").get(institution_id)
         if report is None:
             raise not_found("Institution", institution_id)
     if format == "json":
         return report
+    score = report["integrity_score"]
+    summary = [
+        f"Integrity score: {report.get('integrity_note') if score is None else score}",
+        f"APAAR coverage: {report['apaar_coverage_pct']}%",
+        f"Open review cases: {report['open_review_cases']}",
+    ]
     title = f"Accreditation summary: {report['institution_name']}"
-    return _file(f"accreditation-{institution_id}", format, title, report["programmes"])
+    return _file(f"accreditation-{institution_id}", format, title, report["programmes"], summary)

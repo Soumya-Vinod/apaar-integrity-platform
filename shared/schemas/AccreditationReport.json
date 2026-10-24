@@ -43,8 +43,27 @@
       "type": "string"
     },
     "integrity_score": {
-      "title": "Integrity Score",
-      "type": "number"
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Integrity Score"
+    },
+    "integrity_note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Integrity Note"
     },
     "apaar_coverage_pct": {
       "title": "Apaar Coverage Pct",

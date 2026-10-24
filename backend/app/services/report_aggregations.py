@@ -13,7 +13,6 @@ from typing import Any, Literal
 
 import pandas as pd
 
-
 EnrolmentGroup = Literal["state", "programme", "category", "gender"]
 _ENROLMENT_COLUMNS = ("state", "programme_code", "category", "gender", "opted_out")
 _INTAKE_COLUMNS = ("programme_id", "programme_code", "pool", "approved_seats", "rule_version")
@@ -148,7 +147,7 @@ def accreditation_programmes(admissions: pd.DataFrame, intake: pd.DataFrame) -> 
     """Return existing-contract programme totals: approved, admitted, and overrun."""
     utilisation = programme_utilisation_rows(admissions, intake)
     result = utilisation.rename(
-        columns={"programme_code": "programme_code", "approved_seats": "approved_total", "admitted": "admitted_total"}
+        columns={"approved_seats": "approved_total", "admitted": "admitted_total"}
     )[["programme_code", "approved_total", "admitted_total"]]
     result["overrun"] = (result["admitted_total"] - result["approved_total"]).clip(lower=0)
     return result.astype({"approved_total": "int64", "admitted_total": "int64", "overrun": "int64"})
@@ -160,14 +159,17 @@ def accreditation_report(
     intake: pd.DataFrame,
     *,
     academic_year: str,
-    integrity_score: float,
+    integrity_score: float | None,
     apaar_coverage_pct: float,
     open_review_cases: int,
+    integrity_note: str | None = None,
 ) -> dict[str, Any]:
     """Compose the current ``AccreditationReport`` contract from supplied values.
 
     Integrity score, APAAR coverage, and open cases are explicit inputs because
     their source and policy belong to the database/query layer, not aggregation.
+    ``integrity_score`` is ``None`` until one has been computed; ``integrity_note``
+    then says so.
     """
     for key in ("institution_id", "institution_name"):
         if not institution.get(key):
@@ -176,7 +178,8 @@ def accreditation_report(
         "institution_id": str(institution["institution_id"]),
         "institution_name": str(institution["institution_name"]),
         "academic_year": academic_year,
-        "integrity_score": float(integrity_score),
+        "integrity_score": None if integrity_score is None else float(integrity_score),
+        "integrity_note": integrity_note,
         "apaar_coverage_pct": float(apaar_coverage_pct),
         "open_review_cases": int(open_review_cases),
         "programmes": accreditation_programmes(admissions, intake).to_dict("records"),

@@ -5673,8 +5673,26 @@
             "title": "Academic Year"
           },
           "integrity_score": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Integrity Score"
+          },
+          "integrity_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrity Note"
           },
           "apaar_coverage_pct": {
             "type": "number",
