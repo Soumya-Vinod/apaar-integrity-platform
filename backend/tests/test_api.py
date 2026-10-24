@@ -30,6 +30,7 @@ GET_ENDPOINTS = [
     (f"/integrity/institutions/{SHADOW}", "aicte_admin"),
     ("/blind-match/cases", "aicte_admin"),
     ("/reports/enrolment?group_by=state&format=json", "aicte_admin"),
+    ("/reports/states", "aicte_admin"),
     (f"/reports/accreditation/{SHADOW}?format=json", "aicte_admin"),
     (f"/certificates/{STUDENT}", "student"),
     ("/credentials/revocations", "verifier"),
