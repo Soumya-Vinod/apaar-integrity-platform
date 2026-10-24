@@ -19,6 +19,7 @@ import argparse
 import csv
 import io
 import random
+import re
 import subprocess
 import sys
 import tempfile
@@ -34,7 +35,7 @@ import psycopg
 from app.core.config import get_settings
 from app.core.db import close_pool, transaction
 from app.models.auth import User
-from app.services import audit_store, realtime
+from app.services import audit_store, blind_match, realtime
 from app.services import batches as batch_service
 from app.services import submission_windows as windows
 from app.services.ingestion import TEMPLATE_COLUMNS
@@ -55,6 +56,7 @@ SEED_INSTITUTIONS = {
 # Deleted by --reset, children first. Institutions, programmes and seat pools from
 # supabase/seed.sql stay; institutions this script created (origin = load_demo) go last.
 RESET_TABLES = (
+    "credentials",
     "access_log",
     "consents",
     "telegram_links",
@@ -546,6 +548,115 @@ def summary(conn: psycopg.Connection) -> dict[str, Any]:
     }
 
 
+TYPO_DETAILS = re.compile(r"^[^;]+; '(?P<copy>.*)' vs '(?P<source>.*)' at (?P<code>\S+)$")
+
+
+def planted_typo_pairs(
+    generated: list[dict[str, str]], truth: list[dict[str, str]]
+) -> list[tuple[dict[str, str], dict[str, str]]]:
+    """(copy row, source row) for each planted typo_duplicate in ground_truth.csv.
+
+    ground_truth names the copy row (R0000123 is data row 123); the source is the row at the
+    named institution with the original name, the same date of birth and the same guardian.
+    """
+    pairs = []
+    seen: set[str] = set()
+    for entry in truth:
+        if entry["anomaly_type"] != "typo_duplicate" or entry["record_id"] in seen:
+            continue
+        seen.add(entry["record_id"])
+        details = TYPO_DETAILS.match(entry["details"])
+        copy = generated[int(entry["record_id"].lstrip("R")) - 1]
+        if details is None:
+            continue
+        source = next(
+            (
+                r
+                for r in generated
+                if r["institution_aicte_code"] == details["code"]
+                and r["student_name"] == details["source"]
+                and r["dob"] == copy["dob"]
+                and r["guardian_name"] == copy["guardian_name"]
+            ),
+            None,
+        )
+        if source is not None:
+            pairs.append((copy, source))
+    return pairs
+
+
+def blind_match_quality(
+    conn: psycopg.Connection, pairs: list[tuple[dict[str, str], dict[str, str]]]
+) -> dict[str, Any]:
+    """Precision and recall of blind_match cases against the planted typo duplicates."""
+    apaars = [r["apaar_id"] for pair in pairs for r in pair if r["apaar_id"]]
+    provisionals = [r["provisional_id"] for pair in pairs for r in pair if r["provisional_id"]]
+    found = conn.execute(
+        "select id, apaar_id, provisional_id from public.students"
+        " where apaar_id = any(%s) or provisional_id = any(%s)",
+        (apaars, provisionals),
+    ).fetchall()
+    ids = {f["apaar_id"] or f["provisional_id"]: str(f["id"]) for f in found}
+
+    def student(row: dict[str, str]) -> str | None:
+        return ids.get(row["apaar_id"] or row["provisional_id"])
+
+    planted = {
+        blind_match.pair_key(a, b)
+        for a, b in ((student(c), student(s)) for c, s in pairs)
+        if a and b and a != b
+    }
+    cases = {
+        r["k"]
+        for r in conn.execute(
+            "select evidence->>'pair_key' as k from public.review_cases"
+            " where kind = 'blind_match' and evidence ? 'pair_key'"
+        ).fetchall()
+    }
+    hits = len(planted & cases)
+    return {
+        "planted": len(pairs),
+        "planted_loaded": len(planted),
+        "cases": len(cases),
+        "true_positives": hits,
+        "precision": hits / len(cases) if cases else None,
+        "recall": hits / len(planted) if planted else None,
+    }
+
+
+def mark_demo_student(conn: psycopg.Connection) -> str | None:
+    """Mark one clean Meghdoot student whose only admission is still submitted as the demo
+    student (shared/credentials.md section 10), with one access-log entry for the upload."""
+    row = conn.execute(
+        """
+        select s.id from public.students s
+        join public.admissions a on a.student_id = s.id and a.active
+        join public.programmes p on p.id = a.programme_id
+        where p.institution_id = %s and p.code = 'UG-CSE' and a.pool = 'regular'
+          and a.status = 'submitted' and s.apaar_id is not null and not s.opted_out
+          and (select count(*) from public.admissions x where x.student_id = s.id) = 1
+          and not exists (
+            select 1 from public.review_cases rc where rc.kind = 'blind_match'
+              and s.id::text in (rc.evidence->>'student_a_id', rc.evidence->>'student_b_id'))
+        order by s.apaar_id limit 1
+        """,
+        (MEGHDOOT,),
+    ).fetchone()
+    conn.execute("update public.students set is_demo = false where is_demo")
+    if row is None:
+        return None
+    conn.execute("update public.students set is_demo = true where id = %s", (row["id"],))
+    conn.execute(
+        """
+        insert into public.access_log (student_id, accessor, accessor_role, purpose, fields)
+        values (%s, 'Meghdoot Institute of Engineering', 'institution_operator',
+                'Admission record upload', array['full_name', 'dob', 'apaar_id'])
+        """,
+        (row["id"],),
+    )
+    return str(row["id"])
+
+
 # ---------------------------------------------------------------------------- main
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -624,7 +735,14 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     with transaction() as conn:
+        scan = blind_match.scan_all(conn)
+    BROADCASTS.submit(realtime.publish, scan.pop("events", []))
+    truth_file = source / "ground_truth.csv"
+    pairs = planted_typo_pairs(generated, read_csv(truth_file)) if truth_file.exists() else []
+    with transaction() as conn:
         story = shadow_story(conn, results["shadow-cse-admissions-2026-27.csv"]["batch_id"])
+        quality = blind_match_quality(conn, pairs)
+        demo_student = mark_demo_student(conn)
         totals = summary(conn)
     BROADCASTS.shutdown(wait=True)
     close_pool()
@@ -641,6 +759,19 @@ def main(argv: list[str] | None = None) -> int:
     for kind, count in totals["review_cases"].items():
         print(f"  cases {kind:<12} {count}")
     print(f"  audit events       {totals['audit_events']}")
+    print("\nBlind Match (cross-institution):")
+    if not settings.blind_match_secret:
+        print("  skipped: BLIND_MATCH_SECRET is empty")
+    new_cases = len(scan["cases_created"])
+    print(f"  blind_match cases  {quality['cases']}  (new in this scan {new_cases})")
+    print(
+        f"  planted typo pairs {quality['planted']}  (both students loaded"
+        f" {quality['planted_loaded']}, found {quality['true_positives']})"
+    )
+    for key in ("precision", "recall"):
+        value = quality[key]
+        print(f"  {key:<18} {'n/a' if value is None else f'{value:.2f}'}")
+    print(f"  demo student       {demo_student or 'NOT MARKED'}")
     print(f"  /audit/verify      {totals['audit_verify']}")
     print(f"  run time           {time.perf_counter() - started:.1f} s")
     story_ok = all(expected.get(k) == v for k, v in story.items())
