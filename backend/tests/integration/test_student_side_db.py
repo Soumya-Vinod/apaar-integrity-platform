@@ -326,4 +326,3 @@ def test_compute_integrity_for_test_institution(world):
         assert latest is not None
         assert latest["score"] == res["score"]
         conn.execute("delete from public.integrity_scores where institution_id = %s", (inst_id,))
-
