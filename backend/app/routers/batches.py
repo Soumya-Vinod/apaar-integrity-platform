@@ -1,7 +1,7 @@
 # Owner: Dev B
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, Response, UploadFile
 
 from app.core.api_key_auth import api_key_or_roles
 from app.core.config import Settings, get_settings
@@ -12,11 +12,13 @@ from app.mocks import mock, not_found
 from app.models.auth import User
 from app.models.batches import (
     Batch,
+    BatchList,
     BatchUploadResult,
     CommitResult,
     MappingRequest,
     ValidationIssue,
 )
+from app.models.common import BatchStatus
 from app.services import batches as service
 from app.services import blind_match, institutions, outbound_webhooks, realtime
 from app.services.ingestion import file_sha256, parse_upload, suggest_mapping
@@ -35,6 +37,67 @@ def _mock_batch(batch_id: str) -> dict:
     if batch["id"] != batch_id:
         raise not_found("Batch", batch_id)
     return batch
+
+
+def _fixture_batches() -> list[dict]:
+    return [mock("batch")]
+
+
+def _fixture_years() -> dict[str, set[str]]:
+    """Academic years each fixture batch covers, read from the admissions it committed."""
+    years: dict[str, set[str]] = {}
+    for admission in mock("admissions"):
+        if admission.get("batch_id"):
+            years.setdefault(admission["batch_id"], set()).add(admission["academic_year"])
+    return years
+
+
+@router.get("", response_model=BatchList)
+def list_batches(
+    status: BatchStatus | None = None,
+    academic_year: str | None = None,
+    parent_batch_id: str | None = Query(
+        None, description="List the correction batches of this batch"
+    ),
+    institution_id: str | None = Query(
+        None, description="aicte_admin and auditor only; ignored for institution users"
+    ),
+    limit: int = Query(50, ge=1, le=service.MAX_LIMIT),
+    offset: int = Query(0, ge=0),
+    user: User = Depends(READERS),
+    real: bool = Depends(REAL),
+) -> dict:
+    """Batch history, newest first.
+
+    Institution users see only their own institution's batches; aicte_admin and auditor
+    see every institution and may filter by institution_id.
+    """
+    filters = {
+        "status": status,
+        "academic_year": academic_year,
+        "parent_batch_id": parent_batch_id,
+        "institution_id": institution_id,
+    }
+    if real:
+        with transaction() as conn:
+            return service.list_batches(conn, user, filters, limit, offset)
+    institution = service.list_scope(user, institution_id)
+    years = _fixture_years()
+    matching = [
+        b
+        for b in _fixture_batches()
+        if (institution is None or b["institution_id"] == institution)
+        and (status is None or b["status"] == status)
+        and (parent_batch_id is None or b.get("parent_batch_id") == parent_batch_id)
+        and (academic_year is None or academic_year in years.get(b["id"], set()))
+    ]
+    matching.sort(key=lambda b: (b["created_at"], b["id"]), reverse=True)
+    return {
+        "items": matching[offset : offset + limit],
+        "total": len(matching),
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.post(

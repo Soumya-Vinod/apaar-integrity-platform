@@ -32,6 +32,15 @@ class Batch(BaseModel):
     )
 
 
+class BatchList(BaseModel):
+    """One page of batches, newest first. total counts every match, not just this page."""
+
+    items: list[Batch]
+    total: int
+    limit: int
+    offset: int
+
+
 class BatchUploadResult(BaseModel):
     batch: Batch
     suggested_mapping: dict[str, str] = Field(

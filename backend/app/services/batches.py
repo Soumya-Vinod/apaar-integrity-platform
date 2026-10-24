@@ -14,7 +14,7 @@ from psycopg.types.json import Jsonb
 
 from app.core.config import Settings
 from app.core.rule_codes import RuleCode
-from app.core.security import scoped_institution
+from app.core.security import INSTITUTION_ROLES, scoped_institution
 from app.models.auth import User
 from app.services import audit_store
 from app.services import submission_windows as windows
@@ -96,6 +96,58 @@ def load_batch(
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Batch '{batch_id}' not found")
     scoped_institution(user, str(row["institution_id"]))
     return row
+
+
+# ---------------------------------------------------------------------------- listing
+MAX_LIMIT = 200
+
+
+def list_scope(user: User, requested: str | None) -> str | None:
+    """Institution a batch listing is limited to.
+
+    Institution users always get their own institution and a requested one is ignored;
+    aicte_admin and auditor get ``requested`` (None means all institutions).
+    """
+    if user.role in INSTITUTION_ROLES:
+        return scoped_institution(user)
+    return requested
+
+
+def list_batches(
+    conn: psycopg.Connection, user: User, filters: dict[str, Any], limit: int, offset: int
+) -> dict[str, Any]:
+    """Batches newest first, with the total number of matches for paging."""
+    limit = min(limit, MAX_LIMIT)
+    page: dict[str, Any] = {"items": [], "total": 0, "limit": limit, "offset": offset}
+    clauses: list[str] = []
+    params: list[Any] = []
+    for column, value in (
+        ("b.institution_id", list_scope(user, filters.get("institution_id"))),
+        ("b.parent_batch_id", filters.get("parent_batch_id")),
+        ("b.status::text", filters.get("status")),
+    ):
+        if value is not None:
+            if column.endswith("_id") and as_uuid(value) is None:
+                return page
+            clauses.append(f"{column} = %s")
+            params.append(value)
+    if filters.get("academic_year") is not None:
+        # A batch has no year of its own; it belongs to every year its rows name.
+        clauses.append(
+            "exists (select 1 from public.batch_rows r where r.batch_id = b.id"
+            " and r.normalized->'values'->>'academic_year' = %s)"
+        )
+        params.append(filters["academic_year"])
+    where = f" where {' and '.join(clauses)}" if clauses else ""
+    total = conn.execute(f"select count(*) as n from public.batches b{where}", params).fetchone()
+    page["total"] = total["n"]
+    rows = conn.execute(
+        f"select b.* from public.batches b{where}"
+        " order by b.created_at desc, b.id desc limit %s offset %s",
+        (*params, limit, offset),
+    ).fetchall()
+    page["items"] = [batch_out(r) for r in rows]
+    return page
 
 
 # ---------------------------------------------------------------------------- upload
