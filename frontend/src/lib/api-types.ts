@@ -779,7 +779,7 @@ export interface paths {
         };
         /**
          * Ranked Institutions
-         * @description Institutions ranked most anomalous first.
+         * @description Institutions ranked lowest integrity score first.
          */
         get: operations["ranked_institutions_integrity_institutions_get"];
         put?: never;
@@ -914,9 +914,32 @@ export interface paths {
         };
         /**
          * Get Certificate
-         * @description Certificate data with the APAAR ID next to the student ID and a verify link.
+         * @description Issue an enrolment certificate. The APAAR ID is masked; opted-out students get one.
+         *
+         *     Students: their own only. Institution users: students admitted at their institution.
+         *     AICTE admins and auditors: anyone. Each call issues a new certificate (credential).
          */
         get: operations["get_certificate_certificates__student_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/students/me/certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Certificate
+         * @description The signed-in student's own enrolment certificate as a PDF.
+         */
+        get: operations["my_certificate_students_me_certificate_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1569,11 +1592,17 @@ export interface components {
         };
         /** Certificate */
         Certificate: {
-            /** Certificate No */
+            /**
+             * Certificate No
+             * @description Certificate ID, equal to its credential ID
+             */
             certificate_no: string;
             /** Student Id */
             student_id: string;
-            /** Apaar Id */
+            /**
+             * Apaar Id
+             * @description Masked XXXX-XXXX-1234; null when opted out
+             */
             apaar_id: string | null;
             /** Provisional Id */
             provisional_id?: string | null;
@@ -1592,6 +1621,13 @@ export interface components {
             issued_at: string;
             /** Verify Url */
             verify_url: string;
+            /**
+             * Qr Text
+             * @description The QR content: a credential with audience enrolment-certificate
+             */
+            qr_text?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
         };
         /** CommitResult */
         CommitResult: {
@@ -4341,8 +4377,15 @@ export interface operations {
     };
     get_certificate_certificates__student_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description json details or the PDF */
+                format?: "json" | "pdf";
+                /** @description Academic year of the admission */
+                academic_year?: string;
+            };
             header?: {
+                /** @description MOCK_MODE only: act as this student id instead of the demo one */
+                "x-demo-student"?: string | null;
                 authorization?: string | null;
                 "x-demo-role"?: string | null;
                 "x-demo-institution"?: string | null;
@@ -4354,14 +4397,71 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The certificate PDF (format=pdf), or its details as JSON */
             200: {
                 headers: {
+                    /** @description Certificate (credential) ID */
+                    "X-Certificate-Id"?: unknown;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["Certificate"];
+                    "application/pdf": unknown;
                 };
+            };
+            /** @description NO_VALID_ADMISSION: no active, valid admission for the year */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_certificate_students_me_certificate_get: {
+        parameters: {
+            query?: {
+                /** @description Academic year of the admission */
+                academic_year?: string;
+            };
+            header?: {
+                /** @description MOCK_MODE only: act as this student id instead of the demo one */
+                "x-demo-student"?: string | null;
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The certificate PDF (format=pdf), or its details as JSON */
+            200: {
+                headers: {
+                    /** @description Certificate (credential) ID */
+                    "X-Certificate-Id"?: unknown;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description NO_VALID_ADMISSION: no active, valid admission for the year */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

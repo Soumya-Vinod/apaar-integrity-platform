@@ -1,6 +1,7 @@
 {
   "properties": {
     "certificate_no": {
+      "description": "Certificate ID, equal to its credential ID",
       "title": "Certificate No",
       "type": "string"
     },
@@ -17,6 +18,7 @@
           "type": "null"
         }
       ],
+      "description": "Masked XXXX-XXXX-1234; null when opted out",
       "title": "Apaar Id"
     },
     "provisional_id": {
@@ -55,6 +57,32 @@
     "verify_url": {
       "title": "Verify Url",
       "type": "string"
+    },
+    "qr_text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The QR content: a credential with audience enrolment-certificate",
+      "title": "Qr Text"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expires At"
     }
   },
   "required": [

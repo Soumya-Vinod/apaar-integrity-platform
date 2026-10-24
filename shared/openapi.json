@@ -3953,7 +3953,7 @@
           "integrity"
         ],
         "summary": "Ranked Institutions",
-        "description": "Institutions ranked most anomalous first.",
+        "description": "Institutions ranked lowest integrity score first.",
         "operationId": "ranked_institutions_integrity_institutions_get",
         "parameters": [
           {
@@ -4611,7 +4611,7 @@
           "certificates"
         ],
         "summary": "Get Certificate",
-        "description": "Certificate data with the APAAR ID next to the student ID and a verify link.",
+        "description": "Issue an enrolment certificate. The APAAR ID is masked; opted-out students get one.\n\nStudents: their own only. Institution users: students admitted at their institution.\nAICTE admins and auditors: anyone. Each call issues a new certificate (credential).",
         "operationId": "get_certificate_certificates__student_id__get",
         "parameters": [
           {
@@ -4622,6 +4622,52 @@
               "type": "string",
               "title": "Student Id"
             }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "pdf"
+              ],
+              "type": "string",
+              "description": "json details or the PDF",
+              "default": "json",
+              "title": "Format"
+            },
+            "description": "json details or the PDF"
+          },
+          {
+            "name": "academic_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Academic year of the admission",
+              "default": "2026-27",
+              "title": "Academic Year"
+            },
+            "description": "Academic year of the admission"
+          },
+          {
+            "name": "x-demo-student",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "MOCK_MODE only: act as this student id instead of the demo one",
+              "title": "X-Demo-Student"
+            },
+            "description": "MOCK_MODE only: act as this student id instead of the demo one"
           },
           {
             "name": "authorization",
@@ -4674,14 +4720,140 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The certificate PDF (format=pdf), or its details as JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Certificate"
                 }
+              },
+              "application/pdf": {}
+            },
+            "headers": {
+              "X-Certificate-Id": {
+                "description": "Certificate (credential) ID"
               }
             }
+          },
+          "409": {
+            "description": "NO_VALID_ADMISSION: no active, valid admission for the year"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/me/certificate": {
+      "get": {
+        "tags": [
+          "certificates",
+          "students"
+        ],
+        "summary": "My Certificate",
+        "description": "The signed-in student's own enrolment certificate as a PDF.",
+        "operationId": "my_certificate_students_me_certificate_get",
+        "parameters": [
+          {
+            "name": "academic_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Academic year of the admission",
+              "default": "2026-27",
+              "title": "Academic Year"
+            },
+            "description": "Academic year of the admission"
+          },
+          {
+            "name": "x-demo-student",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "MOCK_MODE only: act as this student id instead of the demo one",
+              "title": "X-Demo-Student"
+            },
+            "description": "MOCK_MODE only: act as this student id instead of the demo one"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The certificate PDF (format=pdf), or its details as JSON",
+            "content": {
+              "application/pdf": {}
+            },
+            "headers": {
+              "X-Certificate-Id": {
+                "description": "Certificate (credential) ID"
+              }
+            }
+          },
+          "409": {
+            "description": "NO_VALID_ADMISSION: no active, valid admission for the year"
           },
           "422": {
             "description": "Validation Error",
@@ -6626,7 +6798,8 @@
         "properties": {
           "certificate_no": {
             "type": "string",
-            "title": "Certificate No"
+            "title": "Certificate No",
+            "description": "Certificate ID, equal to its credential ID"
           },
           "student_id": {
             "type": "string",
@@ -6641,7 +6814,8 @@
                 "type": "null"
               }
             ],
-            "title": "Apaar Id"
+            "title": "Apaar Id",
+            "description": "Masked XXXX-XXXX-1234; null when opted out"
           },
           "provisional_id": {
             "anyOf": [
@@ -6678,6 +6852,30 @@
           "verify_url": {
             "type": "string",
             "title": "Verify Url"
+          },
+          "qr_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qr Text",
+            "description": "The QR content: a credential with audience enrolment-certificate"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
           }
         },
         "type": "object",
