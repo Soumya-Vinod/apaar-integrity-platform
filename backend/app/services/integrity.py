@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import statistics
 from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
@@ -228,9 +229,7 @@ def compute_institution_results(
         )
 
     extractor = InstitutionFeatureExtractor()
-    feature_vectors = [
-        extractor.extract(d["institution_id"], d) for d in institutions_data
-    ]
+    feature_vectors = [extractor.extract(d["institution_id"], d) for d in institutions_data]
 
     anomaly_service = AnomalyDetectionService()
     try:
@@ -243,6 +242,17 @@ def compute_institution_results(
     scoring_service = IntegrityScoringService()
     computed_results: list[dict[str, Any]] = []
     now = datetime.now(UTC)
+
+    # Compute peer medians across all institutions in the evaluated cohort
+    peer_medians: dict[str, float] = {}
+    if feature_vectors:
+        feat_values: dict[str, list[float]] = defaultdict(list)
+        for fv in feature_vectors:
+            for k, v in fv.to_dict().items():
+                feat_values[k].append(float(v))
+        for k, v_list in feat_values.items():
+            if v_list:
+                peer_medians[k] = round(float(statistics.median(v_list)), 4)
 
     for idx, item in enumerate(institutions_data):
         inst_id = item["institution_id"]
@@ -261,11 +271,12 @@ def compute_institution_results(
             feat_dict = feature_vectors[idx].to_dict()
             for feat_name in anomaly_res.top_features:
                 val = float(feat_dict.get(feat_name, 0.0))
+                med = float(peer_medians.get(feat_name, val))
                 top_features.append(
                     {
                         "name": feat_name,
                         "value": val,
-                        "peer_median": val,
+                        "peer_median": med,
                     }
                 )
 
@@ -323,4 +334,3 @@ def compute_rankings(
         results = compute_institution_results(c, academic_year=academic_year)
         compute_and_save_integrity(c, results=results, academic_year=academic_year)
         return integrity_store.latest_rankings(c, academic_year=academic_year)
-

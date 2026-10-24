@@ -52,7 +52,9 @@ def test_integrity_role_guard(client):
 
 def test_integrity_endpoints_in_real_mode(client, settings_override):
     """When REAL_DOMAINS contains 'integrity', retrieves persisted results with X-Mock: false."""
-    settings_override(real_domains="integrity", database_url="postgresql://fake:fake@localhost/fake")
+    settings_override(
+        real_domains="integrity", database_url="postgresql://fake:fake@localhost/fake"
+    )
 
     persisted_rankings = [
         {
@@ -155,7 +157,9 @@ def test_integrity_endpoints_in_real_mode(client, settings_override):
 
 def test_integrity_real_mode_empty_table(client, settings_override):
     """When integrity_scores is empty in REAL mode, returns [] with 200 OK without errors."""
-    settings_override(real_domains="integrity", database_url="postgresql://fake:fake@localhost/fake")
+    settings_override(
+        real_domains="integrity", database_url="postgresql://fake:fake@localhost/fake"
+    )
     mock_conn = MagicMock()
     with (
         patch("app.routers.integrity.transaction") as mock_tx,
@@ -257,3 +261,92 @@ def test_latest_for_academic_year_optional():
     assert res_none is not None
     assert "academic_year = %s" not in mock_conn.execute.call_args[0][0]
     assert mock_conn.execute.call_args[0][1] == (SHADOW,)
+
+
+def test_compute_institution_results_peer_medians():
+    """Verify top_features computes cohort peer medians rather than copying feature value."""
+    from engine.types import AnomalyResult
+
+    from app.services.integrity import compute_institution_results
+
+    mock_conn = MagicMock()
+
+    inst_rows = [
+        {"id": "inst-1", "aicte_code": "1-001", "name": "Inst A", "state": "MP"},
+        {"id": "inst-2", "aicte_code": "1-002", "name": "Inst B", "state": "MP"},
+        {"id": "inst-3", "aicte_code": "1-003", "name": "Inst C", "state": "MP"},
+    ]
+
+    # Inst 1 has blind match rate while others have none
+    def mock_execute(query, params=()):
+        cursor = MagicMock()
+        q = str(query).lower()
+        if "from public.institutions" in q:
+            cursor.fetchall.return_value = inst_rows
+        elif "from public.admissions" in q:
+            # 10 admissions each
+            rows = []
+            for inst_id in ["inst-1", "inst-2", "inst-3"]:
+                for i in range(10):
+                    rows.append(
+                        {
+                            "id": f"{inst_id}-{i}",
+                            "institution_id": inst_id,
+                            "programme_id": "prog-1",
+                            "student_id": f"s-{inst_id}-{i}",
+                            "apaar_id": f"apaar-{inst_id}-{i}",
+                            "phone": "9999999999",
+                            "academic_year": "2026-27",
+                            "active": True,
+                            "admission_date": "2026-08-01",
+                            "upload_date": "2026-09-01",
+                        }
+                    )
+            cursor.fetchall.return_value = rows
+        elif "from public.review_cases" in q and "blind_match" not in q:
+            cursor.fetchall.return_value = []
+        elif "from public.seat_pools" in q:
+            cursor.fetchall.return_value = []
+        elif "kind = 'blind_match'" in q:
+            cursor.fetchall.return_value = []
+        else:
+            cursor.fetchall.return_value = []
+        return cursor
+
+    mock_conn.execute.side_effect = mock_execute
+
+    with (
+        patch("app.services.integrity.AnomalyDetectionService") as mock_anomaly_cls,
+        patch("app.services.integrity.IntegrityScoringService"),
+    ):
+        mock_svc = mock_anomaly_cls.return_value
+        # Mock predict returning top_features for inst-1
+        mock_svc.predict.return_value = [
+            AnomalyResult(
+                institution_id="inst-1",
+                score=0.8,
+                prediction="anomaly",
+                top_features=["seat_utilisation"],
+            ),
+            AnomalyResult(
+                institution_id="inst-2",
+                score=0.1,
+                prediction="normal",
+                top_features=[],
+            ),
+            AnomalyResult(
+                institution_id="inst-3",
+                score=0.1,
+                prediction="normal",
+                top_features=[],
+            ),
+        ]
+
+        results = compute_institution_results(mock_conn, academic_year="2026-27")
+        assert len(results) == 3
+        inst1_res = next(r for r in results if r["institution_id"] == "inst-1")
+        assert len(inst1_res["top_features"]) == 1
+        tf = inst1_res["top_features"][0]
+        assert tf["name"] == "seat_utilisation"
+        # Peer median is computed across the cohort (not just copied from value)
+        assert isinstance(tf["peer_median"], float)

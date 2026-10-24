@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -91,7 +92,7 @@ class InstitutionFeatureExtractor:
 
     def __init__(
         self,
-        backdated_threshold_days: int = 30,
+        backdated_threshold_days: int = 180,
         qualifying_min_pct: float = 45.0,
     ) -> None:
         self.backdated_threshold_days = backdated_threshold_days
@@ -264,16 +265,33 @@ class InstitutionFeatureExtractor:
         )
 
         # 5. Backdated admission rate
+        # Matches the per-row BACKDATED_ENTRY rule (engine.signals.rules.backdating):
+        # flags admissions dated before the July–September window (before July 1) or entered with delay > 180 days.
         backdated_count = 0
         for a in inst_admissions:
             adm_date = a.get("admission_date")
-            up_date = a.get("upload_date")
-            if adm_date and up_date:
+            up_date = a.get("upload_date") or a.get("created_at") or a.get("batch_upload_date")
+            if adm_date:
                 try:
                     d_adm = self._parse_date(adm_date)
-                    d_up = self._parse_date(up_date)
-                    if d_adm and d_up and (d_up - d_adm).days > self.backdated_threshold_days:
-                        backdated_count += 1
+                    d_up = self._parse_date(up_date) if up_date else None
+                    if d_adm:
+                        academic_year_raw = a.get("academic_year")
+                        start_year: int | None = None
+                        if academic_year_raw and isinstance(academic_year_raw, str):
+                            m = re.match(r"^(\d{4})", academic_year_raw.strip())
+                            if m:
+                                start_year = int(m.group(1))
+                        if start_year is None and d_up:
+                            start_year = d_up.year
+                        if start_year is None:
+                            start_year = d_adm.year
+
+                        window_start = date(start_year, 7, 1)
+                        if d_adm < window_start or (
+                            d_up and (d_up - d_adm).days > self.backdated_threshold_days
+                        ):
+                            backdated_count += 1
                 except Exception:
                     pass
         backdated_admission_rate = (
