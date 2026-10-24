@@ -122,7 +122,7 @@ function AccessLogEntryContent({ entry }: { entry: AccessLogEntry }) {
   )
 }
 
-function AccessLog() {
+function AccessLog({ refreshKey = 0 }: { refreshKey?: number }) {
   const [entries, setEntries] = useState<AccessLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -150,9 +150,10 @@ function AccessLog() {
 
   }
 
+  // Reload on mount and whenever the parent bumps refreshKey (e.g. after a consent change).
   useEffect(() => {
     void loadAccessLog()
-  }, [])
+  }, [refreshKey])
 
   return (
     <section className="space-y-4">
@@ -255,11 +256,25 @@ interface ConsentsState {
   loading: boolean
   error: string | null
   onRetry: () => void
-  onConsentChange: (consentId: string, updated: Consent, wasGranted: boolean) => void
+  // Called after a successful POST: the parent refetches the consent list and the access log.
+  onChanged: (saved: Consent) => Promise<void>
 }
 
-function Consents({ consents, loading, error, onRetry, onConsentChange }: ConsentsState) {
+const APAAR_PURPOSE = 'apaar_sharing'
+
+// Put the consent the server just returned into the freshly fetched list. In fixture mode the
+// GET returns a static list, so without this a withdraw or opt-out would never show on screen.
+function mergeSavedConsent(list: Consent[], saved: Consent): Consent[] {
+  const same = (item: Consent) =>
+    item.id === saved.id || (item.purpose === saved.purpose && item.verifier_id === saved.verifier_id)
+  const first = list.findIndex(same)
+  if (first === -1) return [saved, ...list]
+  return list.flatMap((item, index) => (same(item) ? (index === first ? [saved] : []) : [item]))
+}
+
+function Consents({ consents, loading, error, onRetry, onChanged }: ConsentsState) {
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [apaarSaving, setApaarSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   useEffect(() => {
     if (!toast) return
@@ -267,34 +282,82 @@ function Consents({ consents, loading, error, onRetry, onConsentChange }: Consen
     return () => window.clearTimeout(timeout)
   }, [toast])
 
-  async function toggleConsent(consent: Consent) {
-    const granted = !consent.revoked_at
-    setSavingId(consent.id)
-    setToast(null)
-    const request: ConsentCreate = {
-      verifier_id: consent.verifier_id,
-      purpose: consent.purpose,
-      fields: consent.fields,
-      expires_in_days: 30,
-    }
+  // The newest apaar_sharing record is the student's current choice. Withdrawn means opted out.
+  const apaarConsent = [...consents]
+    .filter((item) => item.purpose === APAAR_PURPOSE)
+    .sort((left, right) => new Date(right.granted_at).getTime() - new Date(left.granted_at).getTime())[0]
+  const optedOut = Boolean(apaarConsent?.revoked_at)
+  const otherConsents = consents.filter((item) => item.purpose !== APAAR_PURPOSE)
+
+  // POST /students/me/consents, then refetch the consent list and access log via onChanged.
+  async function submitConsent(request: ConsentCreate, successMessage: string) {
+    let saved: Consent
     try {
-      const updated = await api<Consent>('/students/me/consents', {
+      const response = await api<Consent>('/students/me/consents', {
         method: 'POST',
         body: JSON.stringify(request),
       })
-      onConsentChange(consent.id, updated, granted)
-      setToast(granted ? 'Consent withdrawn.' : 'Consent granted.')
+      // Make sure the returned record reflects the action we asked for.
+      saved = {
+        ...response,
+        revoked_at:
+          request.action === 'withdraw'
+            ? response.revoked_at ?? new Date().toISOString()
+            : null,
+      }
     } catch (saveError) {
       setToast(saveError instanceof ApiError
         ? `We could not update this consent (${saveError.status}).`
         : 'We could not update this consent. Please try again.')
+      return
+    }
+    setToast(successMessage)
+    await onChanged(saved)
+  }
+
+  async function toggleConsent(consent: Consent) {
+    const granted = !consent.revoked_at
+    setSavingId(consent.id)
+    setToast(null)
+    try {
+      await submitConsent(
+        {
+          verifier_id: consent.verifier_id,
+          verifier_name: consent.verifier_name,
+          purpose: consent.purpose,
+          fields: consent.fields,
+          expires_in_days: 30,
+          action: granted ? 'withdraw' : 'grant',
+        },
+        granted ? 'Consent withdrawn.' : 'Consent granted.',
+      )
     } finally {
       setSavingId(null)
     }
   }
 
-  function requestOptOut() {
-    if (window.confirm('Opt out of APAAR-based sharing?')) setToast('Coming soon')
+  async function changeApaarSharing(action: 'grant' | 'withdraw') {
+    if (action === 'withdraw' && !window.confirm('Opt out of APAAR-based sharing?')) return
+    setApaarSaving(true)
+    setToast(null)
+    try {
+      // The server sets verifier_id and verifier_name for this reserved purpose.
+      await submitConsent(
+        {
+          verifier_id: 'apaar-simulated',
+          verifier_name: 'APAAR (SIMULATED)',
+          purpose: APAAR_PURPOSE,
+          fields: [],
+          expires_in_days: 30,
+          action,
+        },
+        action === 'withdraw'
+          ? 'You have opted out of APAAR-based sharing.'
+          : 'APAAR-based sharing is turned back on.',
+      )
+    } finally {
+      setApaarSaving(false)
+    }
   }
 
   return (
@@ -312,10 +375,22 @@ function Consents({ consents, loading, error, onRetry, onConsentChange }: Consen
               The Supreme Court (July 2026) requires that you can explicitly opt out of APAAR-based sharing.
             </p>
           </div>
-          <button type="button" onClick={requestOptOut} className="shrink-0 rounded-full bg-slate-300 px-3 py-1 text-xs font-bold text-slate-700 hover:bg-slate-400">
-            Opt out
+          <button
+            type="button"
+            disabled={apaarSaving || loading}
+            onClick={() => void changeApaarSharing(optedOut ? 'grant' : 'withdraw')}
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60 ${
+              optedOut ? 'bg-emerald-700 text-white hover:bg-emerald-800' : 'bg-slate-300 text-slate-700 hover:bg-slate-400'
+            }`}
+          >
+            {apaarSaving ? 'Saving…' : optedOut ? 'Opt back in' : 'Opt out'}
           </button>
         </div>
+        <span className={`mt-3 inline-block rounded-full px-2.5 py-1 text-xs font-bold ${optedOut ? 'bg-slate-200 text-slate-800' : 'bg-emerald-100 text-emerald-800'}`}>
+          {optedOut
+            ? `Opted out${apaarConsent?.revoked_at ? ` ${formatConsentDate(apaarConsent.revoked_at)}` : ''}`
+            : 'APAAR-based sharing is on'}
+        </span>
       </div>
       {loading && <ConsentsLoading />}
       {!loading && error && (
@@ -324,12 +399,12 @@ function Consents({ consents, loading, error, onRetry, onConsentChange }: Consen
           <button type="button" onClick={onRetry} className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">Retry</button>
         </div>
       )}
-      {!loading && !error && consents.length === 0 && (
+      {!loading && !error && otherConsents.length === 0 && (
         <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">No consents recorded yet.</div>
       )}
-      {!loading && !error && consents.length > 0 && (
+      {!loading && !error && otherConsents.length > 0 && (
         <div className="space-y-3">
-          {consents.map((consent) => {
+          {otherConsents.map((consent) => {
             const granted = !consent.revoked_at
             const saving = savingId === consent.id
             return (
@@ -618,7 +693,7 @@ function ShareCredential({ credential, revoked, onCredentialCreated, onRevoked }
     setError(null)
     setIsRevoking(true)
     try {
-      await api(`/credentials/${encodeURIComponent(credential.credential_id)}/revoke`, {
+      await api(`/credentials/${encodeURIComponent(credential.id)}/revoke`, {
         method: 'POST',
         body: JSON.stringify({ reason: 'Revoked by student' }),
       })
@@ -633,7 +708,7 @@ function ShareCredential({ credential, revoked, onCredentialCreated, onRevoked }
   async function copyQrText() {
     if (!credential) return
     try {
-      await navigator.clipboard.writeText(credential.qr_payload)
+      await navigator.clipboard.writeText(credential.qr_text)
       setCopied(true)
       setError(null)
     } catch {
@@ -735,7 +810,7 @@ function ShareCredential({ credential, revoked, onCredentialCreated, onRevoked }
           </div>
           <div className="mt-6 flex flex-col items-center">
             <div className={`rounded-xl border border-slate-200 bg-white p-4 ${revoked ? 'opacity-40' : ''}`}>
-              <QRCodeSVG value={credential.qr_payload} size={220} includeMargin />
+              <QRCodeSVG value={credential.qr_text} size={220} includeMargin />
             </div>
             <p className="mt-4 max-w-md text-center text-sm text-slate-600">
               Your APAAR number is not inside this QR. Only the facts you ticked are shared.
@@ -749,7 +824,7 @@ function ShareCredential({ credential, revoked, onCredentialCreated, onRevoked }
               <textarea
                 id="qr-text"
                 readOnly
-                value={credential.qr_payload}
+                value={credential.qr_text}
                 rows={3}
                 className="min-w-0 flex-1 resize-y rounded-lg border border-slate-300 bg-slate-50 p-3 font-mono text-xs text-slate-700"
               />
@@ -778,6 +853,7 @@ export default function StudentPage() {
   const [consentsError, setConsentsError] = useState<string | null>(null)
   const [credential, setCredential] = useState<Credential | null>(null)
   const [credentialRevoked, setCredentialRevoked] = useState(false)
+  const [accessLogVersion, setAccessLogVersion] = useState(0)
   const tabs = [
     { id: 'records', label: 'My records' },
     { id: 'share', label: 'Share a credential' },
@@ -801,11 +877,13 @@ export default function StudentPage() {
     }
   }
 
-  async function loadConsents() {
-    setConsentsLoading(true)
+  // silent = refresh in place without swapping the list for the loading skeleton.
+  async function loadConsents(silent = false, saved?: Consent) {
+    if (!silent) setConsentsLoading(true)
     setConsentsError(null)
     try {
-      setConsents(await api<Consent[]>('/students/me/consents'))
+      const list = await api<Consent[]>('/students/me/consents')
+      setConsents(saved ? mergeSavedConsent(list, saved) : list)
     } catch (loadError) {
       setConsentsError(
         loadError instanceof ApiError
@@ -815,6 +893,12 @@ export default function StudentPage() {
     } finally {
       setConsentsLoading(false)
     }
+  }
+
+  // After a consent change: refetch the consent list and make the access log reload too.
+  async function refreshAfterConsentChange(saved: Consent) {
+    setAccessLogVersion((version) => version + 1)
+    await loadConsents(true, saved)
   }
 
   useEffect(() => {
@@ -876,22 +960,14 @@ export default function StudentPage() {
           onRevoked={() => setCredentialRevoked(true)}
         />
       ) : activeTab === 'viewed' ? (
-        <AccessLog />
+        <AccessLog refreshKey={accessLogVersion} />
       ) : activeTab === 'consents' ? (
         <Consents
           consents={consents}
           loading={consentsLoading}
           error={consentsError}
           onRetry={() => void loadConsents()}
-          onConsentChange={(consentId, updated, wasGranted) => {
-            setConsents((current) => current.map((item) => item.id === consentId
-              ? {
-                  ...updated,
-                  id: consentId,
-                  revoked_at: wasGranted ? new Date().toISOString() : updated.revoked_at,
-                }
-              : item))
-          }}
+          onChanged={refreshAfterConsentChange}
         />
       ) : (
         <Placeholder title={tabs.find((tab) => tab.id === activeTab)?.label ?? ''} />
