@@ -15,7 +15,7 @@ uv run python -m scripts.export_contracts           # writes ../shared/openapi.j
 
 Two independent switches:
 
-- `REAL_DOMAINS` (comma-separated, default empty) picks which domains come from Postgres: `institutions`, `seat_ledger`, `batches`, `admissions`, `review_cases`, `audit`, `submission_windows`. Every other domain, including all of Dev A, C and E's endpoints, serves fixtures from `app/mocks/`. Responses carry `X-Mock: true` for fixtures and `X-Mock: false` for Postgres.
+- `REAL_DOMAINS` (comma-separated, default empty) picks which domains come from Postgres: `institutions`, `seat_ledger`, `batches`, `admissions`, `review_cases`, `audit`, `submission_windows`, `blind_match`, `students`, `credentials`, `integrity`, `reports`, `certificates`. Every other domain serves fixtures from `app/mocks/`. Dev C's `reports` and `certificates` serve fixtures unless listed in `REAL_DOMAINS`. Responses carry `X-Mock: true` for fixtures and `X-Mock: false` for Postgres.
 - `MOCK_MODE` controls auth only. `true` (default): the user comes from `X-Demo-Role` (`institution_admin`, `institution_operator`, `aicte_admin` (default), `student`, `verifier`, `auditor`) and `X-Demo-Institution`. `false`: a Supabase access token, verified against the project JWKS (ES256/RS256) or `SUPABASE_JWT_SECRET` (HS256), reading `app_metadata.role` and `app_metadata.institution_id`.
 
 Institution users only ever see and write their own institution's rows; `aicte_admin` and `auditor` see everything.

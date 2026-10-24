@@ -21,6 +21,8 @@ DOMAINS = (
     "students",
     "credentials",
     "integrity",
+    "reports",
+    "certificates",
 )
 
 

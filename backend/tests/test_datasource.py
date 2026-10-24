@@ -18,6 +18,15 @@ def test_real_domains_parsing():
     assert Settings(_env_file=None).real_domain_set == frozenset()
 
 
+def test_reports_and_certificates_domains():
+    s = Settings(_env_file=None, real_domains="reports,certificates")
+    assert s.real_domain_set == {"reports", "certificates"}
+    assert s.is_real("reports") and s.is_real("certificates")
+    unlisted = Settings(_env_file=None, real_domains="batches")
+    assert not unlisted.is_real("reports") and not unlisted.is_real("certificates")
+    assert not Settings(_env_file=None).is_real("reports")
+
+
 def test_unknown_real_domain_rejected():
     with pytest.raises(ValueError):
         _ = Settings(_env_file=None, real_domains="batches,telegram").real_domain_set
