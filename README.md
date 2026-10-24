@@ -148,7 +148,7 @@ uv run python -m scripts.load_demo --reset --yes
 | --- | --- | --- |
 | Dev A | Integrity engine, Integrity Score and Blind Match | [@chinmay161](https://github.com/chinmay161) |
 | Dev B | Backend, database, contracts, bot | [@Soumya-Vinod](https://github.com/Soumya-Vinod) |
-| Dev C | Synthetic data, reports and certificates | TODO |
+| Dev C | Synthetic data, reports and certificates | [@saachijo14](https://github.com/saachijo14) |
 | Dev D | Institution, AICTE and Blind Match screens | [@annieoverthere](https://github.com/annieoverthere) |
 | Dev X | Student and verifier screens, deck | [@bhumit1204](https://github.com/bhumit1204) |
 
