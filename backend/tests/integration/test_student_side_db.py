@@ -302,3 +302,28 @@ def test_integrity_results_upsert_and_latest(world):
     assert rows == 1
     assert (latest["score"], latest["tier"]) == (55.0, "high")
     assert latest["components"] == {"anomaly": 0.5}
+
+
+def test_compute_integrity_for_test_institution(world):
+    from app.services.integrity import compute_and_save_integrity, compute_institution_results
+
+    inst_id = world["a"]["id"]
+    with transaction() as conn:
+        results = compute_institution_results(
+            conn, academic_year="2026-27", institution_ids=[inst_id]
+        )
+        assert len(results) == 1
+        res = results[0]
+        assert res["institution_id"] == inst_id
+        assert res["academic_year"] == "2026-27"
+        assert 0.0 <= res["score"] <= 100.0
+        assert "components" in res
+
+        saved = compute_and_save_integrity(conn, results=results, academic_year="2026-27")
+        assert saved == 1
+
+        latest = integrity_store.latest_for(conn, inst_id, "2026-27")
+        assert latest is not None
+        assert latest["score"] == res["score"]
+        conn.execute("delete from public.integrity_scores where institution_id = %s", (inst_id,))
+
