@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
     database_url: str = ""
     cors_origins: str = "http://localhost:5173"
+    # Public frontend URL, printed on certificates as the verifier link; empty falls back to
+    # the first CORS origin.
+    frontend_url: str = ""
     mock_mode: bool = True
     real_domains: str = ""
     max_upload_mb: int = 5
@@ -66,6 +69,11 @@ class Settings(BaseSettings):
         if unknown:
             raise ValueError(f"Unknown REAL_DOMAINS {sorted(unknown)}; use {DOMAINS}")
         return frozenset(names)
+
+    @property
+    def frontend_base_url(self) -> str:
+        url = self.frontend_url or next(iter(self.cors_origin_list), "")
+        return url.rstrip("/")
 
     @property
     def internal_token(self) -> str:

@@ -35,6 +35,7 @@ GET_ENDPOINTS = [
     ("/credentials/revocations", "verifier"),
     ("/credentials/public-key", "verifier"),
     ("/students/me/records", "student"),
+    ("/students/me/certificate", "student"),
     ("/students/me/consents", "student"),
     ("/students/me/access-log", "student"),
     ("/edit-requests", "aicte_admin"),

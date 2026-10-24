@@ -82,6 +82,8 @@ The student picks one of three:
 
 `exp = iat + lifetime`.
 
+**Enrolment certificates (internal).** The backend also issues credentials for enrolment certificates (`GET /certificates/{student_id}?format=pdf`, `GET /students/me/certificate`). These use the same format with audience `enrolment-certificate`, all four claims and a **180-day** lifetime. Students cannot request that lifetime: `POST /credentials` still accepts only `15m`, `1d` and `7d`. The certificate ID is the credential ID, so revoking the credential revokes the certificate. Verifiers need no change.
+
 ## 6. QR text
 
 `qr_text = base64url_no_padding(UTF-8 JSON of {"payload": <payload object>, "sig": <base64 signature>})`

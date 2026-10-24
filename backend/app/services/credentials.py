@@ -35,6 +35,9 @@ EXPIRY = {
     "1d": timedelta(days=1),
     "7d": timedelta(days=7),
 }
+# Internal only (enrolment certificates); the student API still accepts just EXPIRY's keys.
+CERTIFICATE_EXPIRY = "180d"
+_LIFETIMES = {**EXPIRY, CERTIFICATE_EXPIRY: timedelta(days=180)}
 # Fixed seed for unit tests, test vectors and fixture mode. Never the production key.
 TEST_SEED_HEX = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
 TEST_PSEUDONYM_SECRET = "test-pseudonym-secret"
@@ -107,7 +110,7 @@ def build_payload(
         "aud": audience,
         "claims": claims,
         "iat": issued,
-        "exp": issued + int(EXPIRY[expiry].total_seconds()),
+        "exp": issued + int(_LIFETIMES[expiry].total_seconds()),
         "nonce": nonce or secrets.token_hex(16),
     }
 
@@ -208,6 +211,32 @@ def log_access(
     )
 
 
+def store(
+    conn: psycopg.Connection, payload: dict[str, Any], student_id: str, admission_id: str
+) -> datetime:
+    """Record an issued credential so it can be revoked and its checks logged.
+    Returns its expiry."""
+    expires_at = datetime.fromtimestamp(payload["exp"], UTC)
+    conn.execute(
+        """
+        insert into public.credentials
+          (id, student_id, admission_id, audience, pseudonym, claims, issued_at, expires_at)
+        values (%s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            payload["id"],
+            student_id,
+            admission_id,
+            payload["aud"],
+            payload["sub"],
+            Jsonb(payload["claims"]),
+            datetime.fromtimestamp(payload["iat"], UTC),
+            expires_at,
+        ),
+    )
+    return expires_at
+
+
 def issue(
     conn: psycopg.Connection,
     student_id: str,
@@ -228,24 +257,7 @@ def issue(
         pseudonym_secret=pseudonym_secret,
     )
     qr_text = sign(payload, key)
-    expires_at = datetime.fromtimestamp(payload["exp"], UTC)
-    conn.execute(
-        """
-        insert into public.credentials
-          (id, student_id, admission_id, audience, pseudonym, claims, issued_at, expires_at)
-        values (%s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-        (
-            payload["id"],
-            student_id,
-            admission["id"],
-            payload["aud"],
-            payload["sub"],
-            Jsonb(claims),
-            datetime.fromtimestamp(payload["iat"], UTC),
-            expires_at,
-        ),
-    )
+    expires_at = store(conn, payload, student_id, str(admission["id"]))
     audit_store.append_event(
         conn,
         f"student:{student_id}",
