@@ -50,6 +50,13 @@ class EditRequest(BaseModel):
     decision_note: str | None = None
     created_at: datetime
     decided_at: datetime | None = None
+    institution_id: str | None = None
+    admission: Admission | None = Field(
+        None, description="The admission it changes (APAAR masked); set by GET /edit-requests"
+    )
+
+
+EditRequestStatus = Literal["pending", "approved", "rejected"]
 
 
 class EditDecision(BaseModel):

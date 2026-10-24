@@ -110,6 +110,55 @@ def _edit_request(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def list_edit_requests(
+    conn: psycopg.Connection, user: User, filters: dict[str, Any], limit: int, offset: int
+) -> list[dict[str, Any]]:
+    """Edit requests newest first, each with its admission (APAAR masked).
+
+    Institution users see only their own institution's requests.
+    """
+    institution = scoped_institution(user, filters.get("institution_id"))
+    if institution is not None and as_uuid(institution) is None:
+        return []
+    rows = conn.execute(
+        """
+        select er.*, p.institution_id
+        from public.edit_requests er
+        join public.admissions a on a.id = er.admission_id
+        join public.programmes p on p.id = a.programme_id
+        where (%(status)s::text is null or er.status = %(status)s)
+          and (%(inst)s::uuid is null or p.institution_id = %(inst)s::uuid)
+          and (%(year)s::text is null or a.academic_year = %(year)s)
+        order by er.created_at desc, er.id
+        limit %(limit)s offset %(offset)s
+        """,
+        {
+            "status": filters.get("status"),
+            "inst": institution,
+            "year": filters.get("academic_year"),
+            "limit": min(limit, MAX_LIMIT),
+            "offset": offset,
+        },
+    ).fetchall()
+    if not rows:
+        return []
+    admissions = {
+        str(a["id"]): _admission(a)
+        for a in conn.execute(
+            f"{_SELECT} where a.id = any(%s::uuid[])",
+            ([str(r["admission_id"]) for r in rows],),
+        ).fetchall()
+    }
+    return [
+        {
+            **_edit_request({k: v for k, v in r.items() if k != "institution_id"}),
+            "institution_id": str(r["institution_id"]),
+            "admission": admissions.get(str(r["admission_id"])),
+        }
+        for r in rows
+    ]
+
+
 def create_edit_request(
     conn: psycopg.Connection, admission_id: str, body: dict[str, str], user: User
 ) -> dict[str, Any]:

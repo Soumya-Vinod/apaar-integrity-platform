@@ -7,13 +7,14 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from app.core.datasource import source
 from app.core.db import transaction
-from app.core.security import require_roles
+from app.core.security import require_roles, scoped_institution
 from app.mocks import mock, not_found
 from app.models.admissions import (
     Admission,
     EditDecision,
     EditRequest,
     EditRequestCreate,
+    EditRequestStatus,
     WithdrawRequest,
 )
 from app.models.auth import User
@@ -93,6 +94,45 @@ def create_edit_request(
         created_at=datetime.now(UTC).isoformat(),
     )
     return request
+
+
+@router.get("/edit-requests", response_model=list[EditRequest])
+def list_edit_requests(
+    status: EditRequestStatus | None = None,
+    institution_id: str | None = None,
+    academic_year: str | None = None,
+    limit: int = Query(50, ge=1, le=service.MAX_LIMIT),
+    offset: int = Query(0, ge=0),
+    user: User = Depends(READERS),
+    real: bool = Depends(REAL),
+) -> list[dict]:
+    """Edit requests, newest first, with the admission each one changes (APAAR masked).
+
+    aicte_admin and auditor see every institution; institution users only their own.
+    """
+    filters = {"status": status, "institution_id": institution_id, "academic_year": academic_year}
+    if real:
+        with transaction() as conn:
+            return service.list_edit_requests(conn, user, filters, limit, offset)
+    institution = scoped_institution(user, institution_id)
+    admissions = {a["id"]: a for a in mock("admissions")}
+    out = []
+    for request in sorted(mock("edit_requests"), key=lambda r: r["created_at"], reverse=True):
+        admission = admissions.get(request["admission_id"])
+        if (
+            (status and request["status"] != status)
+            or (institution and (admission or {}).get("institution_id") != institution)
+            or (academic_year and (admission or {}).get("academic_year") != academic_year)
+        ):
+            continue
+        out.append(
+            {
+                **request,
+                "institution_id": admission["institution_id"] if admission else None,
+                "admission": admission,
+            }
+        )
+    return out[offset : offset + limit]
 
 
 @router.post("/edit-requests/{edit_request_id}/decision", response_model=EditRequest)
