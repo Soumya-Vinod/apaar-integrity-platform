@@ -20,6 +20,7 @@ DOMAINS = (
     "blind_match",
     "students",
     "credentials",
+    "integrity",
 )
 
 

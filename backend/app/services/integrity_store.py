@@ -63,7 +63,7 @@ def save_results(conn: psycopg.Connection, results: list[dict[str, Any]]) -> int
 
 
 def latest_for(
-    conn: psycopg.Connection, institution_id: str, academic_year: str
+    conn: psycopg.Connection, institution_id: str, academic_year: str = "2026-27"
 ) -> dict[str, Any] | None:
     """The most recently computed result for this institution and year, any model version."""
     row = conn.execute(
@@ -77,3 +77,71 @@ def latest_for(
     if row is None:
         return None
     return {**row, "institution_id": str(row["institution_id"]), "score": float(row["score"])}
+
+
+def latest_rankings(
+    conn: psycopg.Connection, academic_year: str = "2026-27"
+) -> list[dict[str, Any]]:
+    """Institutions ranked most anomalous first, from the latest computed integrity scores."""
+    rows = conn.execute(
+        """
+        select distinct on (s.institution_id)
+            s.institution_id,
+            i.name as institution_name,
+            i.aicte_code,
+            s.score as integrity_score,
+            s.tier,
+            s.components,
+            s.top_features,
+            s.signals,
+            s.computed_at
+        from public.integrity_scores s
+        join public.institutions i on i.id = s.institution_id
+        where s.academic_year = %s
+        order by s.institution_id, s.computed_at desc
+        """,
+        (academic_year,),
+    ).fetchall()
+    if not rows:
+        return []
+
+    def _extract_anomaly(r: dict[str, Any]) -> float:
+        comps = r.get("components") or {}
+        if isinstance(comps, dict):
+            if "anomaly_score" in comps:
+                return float(comps["anomaly_score"])
+            if "anomaly" in comps and 0.0 <= float(comps["anomaly"]) <= 1.0:
+                return float(comps["anomaly"])
+        return 0.0
+
+    sorted_rows = sorted(
+        rows,
+        key=lambda r: (_extract_anomaly(r), -float(r["integrity_score"])),
+        reverse=True,
+    )
+
+    rankings: list[dict[str, Any]] = []
+    for rank, r in enumerate(sorted_rows, start=1):
+        signals = r.get("signals") or []
+        top_signals: list[str] = []
+        for s in signals:
+            if isinstance(s, dict) and "code" in s:
+                code = str(s["code"])
+                if code not in top_signals:
+                    top_signals.append(code)
+            elif isinstance(s, str) and s not in top_signals:
+                top_signals.append(s)
+
+        rankings.append(
+            {
+                "rank": rank,
+                "institution_id": str(r["institution_id"]),
+                "institution_name": r["institution_name"],
+                "aicte_code": r["aicte_code"],
+                "integrity_score": float(r["integrity_score"]),
+                "anomaly_score": round(_extract_anomaly(r), 2),
+                "top_signals": top_signals,
+            }
+        )
+    return rankings
+
