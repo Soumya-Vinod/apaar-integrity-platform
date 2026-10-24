@@ -21,7 +21,7 @@ REAL = source("integrity")
 
 @router.get("/institutions", response_model=list[IntegrityRanking])
 def ranked_institutions(real: bool = Depends(REAL)) -> list[dict]:
-    """Institutions ranked most anomalous first."""
+    """Institutions ranked lowest integrity score first."""
     if real:
         with transaction() as conn:
             return integrity_store.latest_rankings(conn)
@@ -41,5 +41,3 @@ def institution_integrity(institution_id: str, real: bool = Depends(REAL)) -> di
     if detail is None:
         raise not_found("Institution", institution_id)
     return detail
-
-

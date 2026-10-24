@@ -92,11 +92,7 @@ def format_detail(row: dict[str, Any]) -> dict[str, Any]:
     comps = row.get("components") or {}
     anomaly_score = float(
         comps.get("anomaly_score")
-        or (
-            comps.get("anomaly")
-            if (0.0 <= float(comps.get("anomaly", 0.0)) <= 1.0)
-            else 0.0
-        )
+        or (comps.get("anomaly") if (0.0 <= float(comps.get("anomaly", 0.0)) <= 1.0) else 0.0)
         or 0.0
     )
 
@@ -151,7 +147,7 @@ def latest_detail(
 def latest_rankings(
     conn: psycopg.Connection, academic_year: str | None = None
 ) -> list[dict[str, Any]]:
-    """Institutions ranked most anomalous first, from the latest computed integrity scores."""
+    """Institutions ranked lowest integrity score first, from latest computed scores."""
     if academic_year is not None:
         query = """
             select distinct on (s.institution_id)
@@ -203,8 +199,7 @@ def latest_rankings(
 
     sorted_rows = sorted(
         rows,
-        key=lambda r: (_extract_anomaly(r), -float(r["integrity_score"])),
-        reverse=True,
+        key=lambda r: (float(r["integrity_score"]), -_extract_anomaly(r)),
     )
 
     rankings: list[dict[str, Any]] = []
@@ -231,5 +226,3 @@ def latest_rankings(
             }
         )
     return rankings
-
-
