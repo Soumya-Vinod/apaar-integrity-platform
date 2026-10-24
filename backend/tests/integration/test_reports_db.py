@@ -36,3 +36,24 @@ def test_enrolment_total_equals_active_admissions(client, group_by):
         ).fetchone()["n"]
     assert body["total"] == active
     assert sum(row["admissions"] for row in body["rows"]) == active
+
+
+def test_state_report_matches_enrolment_and_flags_shadow(client):
+    states = client.get("/reports/states", params={"academic_year": YEAR}, headers=AICTE)
+    assert states.status_code == 200, states.text
+    assert states.headers["X-Mock"] != "true"
+    body = states.json()
+    enrolment = client.get("/reports/enrolment", params={"group_by": "state"}, headers=AICTE)
+    total = enrolment.json()["total"]
+    assert sum(row["active_admissions"] for row in body["rows"]) == total
+    assert body["totals"]["active_admissions"] == total
+    shadow = next(
+        (i, row)
+        for row in body["rows"]
+        for i in row["institutions_list"]
+        if i["institution_id"] == SHADOW
+    )
+    institution, row = shadow
+    assert row["state"] == "Uttar Pradesh"
+    assert institution["overrun"] is True
+    assert row["overrun_programmes"] >= 1

@@ -86,6 +86,12 @@ export const ROUTES: readonly RouteAccess[] = [
     roles: ['aicte_admin', 'auditor'],
     audience: 'AICTE administrators',
   },
+  {
+    path: '/map',
+    label: 'State map',
+    roles: ['aicte_admin', 'auditor'],
+    audience: 'AICTE administrators',
+  },
   { path: '/student', label: 'Student', roles: ['student'], audience: 'students' },
   { path: '/verifier', label: 'Verifier', roles: ['verifier', 'aicte_admin'], audience: 'verifiers' },
 ]

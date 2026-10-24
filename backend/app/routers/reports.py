@@ -11,8 +11,8 @@ from app.core.security import require_roles, scoped_institution
 from app.mocks import mock, not_found
 from app.models.auth import User
 from app.models.common import ReportFormat
-from app.models.reports import AccreditationReport, EnrolmentReport, GroupBy
-from app.services import integrity_store
+from app.models.reports import AccreditationReport, EnrolmentReport, GroupBy, StateReport
+from app.services import integrity_store, state_report
 from app.services import report_aggregations as aggregations
 from app.services.institutions import get_institution
 from app.services.reports import to_pdf, to_xlsx
@@ -150,6 +150,23 @@ def enrolment(
         return report
     title = f"Enrolment {report['academic_year']} by {group_by}"
     return _file(f"enrolment-{group_by}", format, title, report["rows"])
+
+
+@router.get("/states", response_model=StateReport)
+def states(
+    academic_year: str = Query(ACADEMIC_YEAR),
+    user: User = Depends(ENROLMENT_READERS),
+    real: bool = Depends(REAL),
+) -> dict:
+    """Per state: institutions, active admissions against approved seats, programmes over
+    intake, open review cases and the average Integrity Score. Aggregates only."""
+    if real:
+        with transaction() as conn:
+            return state_report.from_db(conn, academic_year)
+    report = mock("state_report").get(academic_year)
+    if report is None:
+        raise not_found("State report", academic_year)
+    return report
 
 
 @router.get(
