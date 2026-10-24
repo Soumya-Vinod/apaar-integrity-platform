@@ -1158,7 +1158,9 @@ export interface components {
             /** Academic Year */
             academic_year: string;
             /** Integrity Score */
-            integrity_score: number;
+            integrity_score: number | null;
+            /** Integrity Note */
+            integrity_note?: string | null;
             /** Apaar Coverage Pct */
             apaar_coverage_pct: number;
             /** Open Review Cases */
