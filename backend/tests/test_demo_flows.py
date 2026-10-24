@@ -25,6 +25,8 @@ from scripts.load_demo import (
     NARMADA_PLAN,
     SHADOW_STORY,
     Scripted,
+    match_quality,
+    scripted_typo_pairs,
     shadow_rows,
 )
 from tests.conftest import as_role
@@ -337,3 +339,39 @@ def test_chains_keep_shared_apaar_jobs_together_and_in_order():
     ]
     names = sorted([j[1] for j in group] for group in chains(jobs))
     assert names == [["a", "c"], ["b", "d"], ["e"]]
+
+
+def test_scripted_typo_pair_is_the_shadow_copy_of_narmada():
+    gen = Scripted(42, set())
+    narmada = gen.clean(NARMADA, NARMADA_PLAN, block=2)
+    twins = [r for r in narmada if r["programme_code"] == "UG-CSE" and r["seat_pool"] == "regular"]
+    shadow = shadow_rows(gen, twins[3:5], twins[5])
+    pairs = scripted_typo_pairs(shadow, twins[5])
+    assert len(pairs) == 1
+    copy, source = pairs[0]
+    assert source is twins[5]
+    assert copy["apaar_id"] != source["apaar_id"]
+    assert copy["guardian_name"] == source["guardian_name"]
+
+
+def test_match_quality_counts_the_scripted_pair_as_a_true_case():
+    planted = {f"p{i}" for i in range(12)}
+    # Every planted pair found, the scripted pair found, plus one false case.
+    cases = planted | {"shadow:narmada", "x:y"}
+    quality = match_quality(planted, {"shadow:narmada"}, cases, 12, 1)
+    assert (quality["planted_found"], quality["planted"]) == (12, 12)
+    assert (quality["scripted_found"], quality["scripted"]) == (1, 1)
+    assert (quality["cases"], quality["true_positives"]) == (14, 13)
+    assert quality["precision"] == 13 / 14
+    assert quality["recall"] == 1.0
+
+    exact = match_quality(planted, {"shadow:narmada"}, planted | {"shadow:narmada"}, 12, 1)
+    assert exact["precision"] == exact["recall"] == 1.0
+
+    missed = match_quality(planted, {"shadow:narmada"}, {"p0", "p1"}, 12, 1)
+    assert (missed["planted_found"], missed["scripted_found"]) == (2, 0)
+    assert missed["precision"] == 1.0
+    assert missed["recall"] == 2 / 13
+
+    none = match_quality(set(), set(), set(), 0, 0)
+    assert none["precision"] is None and none["recall"] is None

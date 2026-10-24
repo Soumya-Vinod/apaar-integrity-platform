@@ -616,12 +616,57 @@ def planted_typo_pairs(
     return pairs
 
 
-def blind_match_quality(
-    conn: psycopg.Connection, pairs: list[tuple[dict[str, str], dict[str, str]]]
+def scripted_typo_pairs(
+    shadow: list[dict[str, str]], source: dict[str, str]
+) -> list[tuple[dict[str, str], dict[str, str]]]:
+    """(copy row, source row) for the Blind Match pair load_demo scripts itself: the Shadow row
+    that typo_copy made from ``source`` (a Narmada student)."""
+    name = misspell(source["student_name"])
+    return [
+        (row, source)
+        for row in shadow
+        if row["student_name"] == name and row["dob"] == source["dob"]
+    ]
+
+
+def match_quality(
+    planted: set[str],
+    scripted: set[str],
+    cases: set[str],
+    planted_total: int,
+    scripted_total: int,
 ) -> dict[str, Any]:
-    """Precision and recall of blind_match cases against the planted typo duplicates."""
-    apaars = [r["apaar_id"] for pair in pairs for r in pair if r["apaar_id"]]
-    provisionals = [r["provisional_id"] for pair in pairs for r in pair if r["provisional_id"]]
+    """Precision and recall of blind_match cases (pair keys) against the expected pairs.
+
+    Expected pairs are the planted ground-truth pairs plus the scripted ones; ``planted`` and
+    ``scripted`` hold only pairs whose two students were both loaded. Precision is true cases
+    over all blind_match cases, recall is true cases over all expected pairs.
+    """
+    expected = planted | scripted
+    hits = len(cases & expected)
+    return {
+        "planted": planted_total,
+        "planted_loaded": len(planted),
+        "planted_found": len(cases & planted),
+        "scripted": scripted_total,
+        "scripted_found": len(cases & scripted),
+        "cases": len(cases),
+        "true_positives": hits,
+        "precision": hits / len(cases) if cases else None,
+        "recall": hits / len(expected) if expected else None,
+    }
+
+
+def blind_match_quality(
+    conn: psycopg.Connection,
+    pairs: list[tuple[dict[str, str], dict[str, str]]],
+    scripted: list[tuple[dict[str, str], dict[str, str]]],
+) -> dict[str, Any]:
+    """Precision and recall of blind_match cases against the planted typo duplicates and the
+    scripted Shadow-Narmada pair."""
+    rows = [r for pair in [*pairs, *scripted] for r in pair]
+    apaars = [r["apaar_id"] for r in rows if r["apaar_id"]]
+    provisionals = [r["provisional_id"] for r in rows if r["provisional_id"]]
     found = conn.execute(
         "select id, apaar_id, provisional_id from public.students"
         " where apaar_id = any(%s) or provisional_id = any(%s)",
@@ -632,11 +677,13 @@ def blind_match_quality(
     def student(row: dict[str, str]) -> str | None:
         return ids.get(row["apaar_id"] or row["provisional_id"])
 
-    planted = {
-        blind_match.pair_key(a, b)
-        for a, b in ((student(c), student(s)) for c, s in pairs)
-        if a and b and a != b
-    }
+    def keys(source: list[tuple[dict[str, str], dict[str, str]]]) -> set[str]:
+        return {
+            blind_match.pair_key(a, b)
+            for a, b in ((student(c), student(s)) for c, s in source)
+            if a and b and a != b
+        }
+
     cases = {
         r["k"]
         for r in conn.execute(
@@ -644,15 +691,7 @@ def blind_match_quality(
             " where kind = 'blind_match' and evidence ? 'pair_key'"
         ).fetchall()
     }
-    hits = len(planted & cases)
-    return {
-        "planted": len(pairs),
-        "planted_loaded": len(planted),
-        "cases": len(cases),
-        "true_positives": hits,
-        "precision": hits / len(cases) if cases else None,
-        "recall": hits / len(planted) if planted else None,
-    }
+    return match_quality(keys(pairs), keys(scripted), cases, len(pairs), len(scripted))
 
 
 def mark_demo_student(conn: psycopg.Connection) -> str | None:
@@ -800,7 +839,7 @@ def main(argv: list[str] | None = None) -> int:
     pairs = planted_typo_pairs(generated, read_csv(truth_file)) if truth_file.exists() else []
     with transaction() as conn:
         story = shadow_story(conn, results["shadow-cse-admissions-2026-27.csv"]["batch_id"])
-        quality = blind_match_quality(conn, pairs)
+        quality = blind_match_quality(conn, pairs, scripted_typo_pairs(shadow, twins[5]))
         demo_student = mark_demo_student(conn)
         totals = summary(conn)
     BROADCASTS.shutdown(wait=True)
@@ -824,9 +863,10 @@ def main(argv: list[str] | None = None) -> int:
     new_cases = len(scan["cases_created"])
     print(f"  blind_match cases  {quality['cases']}  (new in this scan {new_cases})")
     print(
-        f"  planted typo pairs {quality['planted']}  (both students loaded"
-        f" {quality['planted_loaded']}, found {quality['true_positives']})"
+        f"  planted pairs found  {quality['planted_found']}/{quality['planted']}"
+        f"  (both students loaded {quality['planted_loaded']})"
     )
+    print(f"  scripted pairs found {quality['scripted_found']}/{quality['scripted']}")
     for key in ("precision", "recall"):
         value = quality[key]
         print(f"  {key:<18} {'n/a' if value is None else f'{value:.2f}'}")
