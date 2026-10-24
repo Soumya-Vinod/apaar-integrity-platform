@@ -20,7 +20,7 @@ def test_real_domains_parsing():
 
 def test_unknown_real_domain_rejected():
     with pytest.raises(ValueError):
-        _ = Settings(_env_file=None, real_domains="batches,students").real_domain_set
+        _ = Settings(_env_file=None, real_domains="batches,telegram").real_domain_set
 
 
 def test_defaults():

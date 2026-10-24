@@ -35,6 +35,7 @@ GET_ENDPOINTS = [
     ("/students/me/records", "student"),
     ("/students/me/consents", "student"),
     ("/students/me/access-log", "student"),
+    ("/edit-requests", "aicte_admin"),
 ]
 
 
@@ -147,19 +148,22 @@ def test_apaar_verify_is_simulated(client):
 
 def test_credential_signature_verifies(client):
     import base64
+    import json
 
     from nacl.signing import VerifyKey
 
-    from app.core.audit import canonical
+    from app.services.credentials import canonical_bytes
 
     key = client.get("/credentials/public-key").json()
     cred = client.post(
         "/credentials",
-        json={"verifier_id": "ver-acme-infotech", "purpose": "hiring", "fields": ["programme"]},
+        json={"claims": ["programme"], "audience": "Acme Infotech", "expiry": "1d"},
         headers=as_role("student"),
     ).json()
+    text = cred["qr_text"]
+    envelope = json.loads(base64.urlsafe_b64decode(text + "=" * (-len(text) % 4)))
     verify_key = VerifyKey(base64.b64decode(key["public_key_b64"]))
-    verify_key.verify(canonical(cred["payload"]).encode(), base64.b64decode(cred["signature_b64"]))
+    verify_key.verify(canonical_bytes(envelope["payload"]), base64.b64decode(envelope["sig"]))
 
 
 def test_webhook_checks_secret(client, settings_override):
