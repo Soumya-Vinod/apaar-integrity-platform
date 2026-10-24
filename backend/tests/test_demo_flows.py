@@ -55,7 +55,7 @@ def demo(fake_blind_match):
     meghdoot = gen.clean(MEGHDOOT, MEGHDOOT_PLAN, block=1)
     narmada = gen.clean(NARMADA, NARMADA_PLAN, block=2)
     twins = [r for r in narmada if r["programme_code"] == "UG-CSE" and r["seat_pool"] == "regular"]
-    return meghdoot, narmada, twins[3:5], shadow_rows(gen, twins[3:5])
+    return meghdoot, narmada, twins[3:5], shadow_rows(gen, twins[3:5], twins[5])
 
 
 # ---------------------------------------------------------------------------- demo dataset
