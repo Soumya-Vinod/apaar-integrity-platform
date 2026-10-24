@@ -17,6 +17,7 @@ GET_ENDPOINTS = [
     ("/institutions", "aicte_admin"),
     (f"/institutions/{SHADOW}", "aicte_admin"),
     (f"/institutions/{SHADOW}/seat-ledger?academic_year=2026-27", "institution_admin"),
+    ("/batches", "aicte_admin"),
     (f"/batches/{BATCH}", "institution_operator"),
     (f"/batches/{BATCH}/issues", "institution_operator"),
     ("/admissions", "aicte_admin"),
