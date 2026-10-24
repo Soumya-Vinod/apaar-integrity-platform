@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
@@ -39,67 +40,179 @@ def compute_institution_results(
     if not inst_rows:
         return []
 
+    # 1. Admissions (linked via programmes.institution_id)
+    if institution_ids:
+        admissions_rows = conn.execute(
+            """
+            select a.*, p.institution_id, s.apaar_id, s.contact_hash as phone,
+                   b.created_at as upload_date
+            from public.admissions a
+            join public.programmes p on p.id = a.programme_id
+            left join public.students s on s.id = a.student_id
+            left join public.batches b on b.id = a.batch_id
+            where a.academic_year = %s and a.active and p.institution_id = any(%s::uuid[])
+            """,
+            (academic_year, institution_ids),
+        ).fetchall()
+    else:
+        admissions_rows = conn.execute(
+            """
+            select a.*, p.institution_id, s.apaar_id, s.contact_hash as phone,
+                   b.created_at as upload_date
+            from public.admissions a
+            join public.programmes p on p.id = a.programme_id
+            left join public.students s on s.id = a.student_id
+            left join public.batches b on b.id = a.batch_id
+            where a.academic_year = %s and a.active
+            """,
+            (academic_year,),
+        ).fetchall()
+
+    # 2. Review cases (intake_overrun, signal, dispute)
+    if institution_ids:
+        rc_rows = conn.execute(
+            """
+            select id, kind, title, evidence, institution_id
+            from public.review_cases
+            where kind != 'blind_match'
+              and institution_id = any(%s::uuid[])
+              and (
+                evidence->>'academic_year' = %s
+                or evidence->>'academic_year' is null
+              )
+            """,
+            (institution_ids, academic_year),
+        ).fetchall()
+    else:
+        rc_rows = conn.execute(
+            """
+            select id, kind, title, evidence, institution_id
+            from public.review_cases
+            where kind != 'blind_match'
+              and (
+                evidence->>'academic_year' = %s
+                or evidence->>'academic_year' is null
+              )
+            """,
+            (academic_year,),
+        ).fetchall()
+
+    # 3. Seat pools (linked via programmes.institution_id)
+    if institution_ids:
+        seat_pools_rows = conn.execute(
+            """
+            select distinct on (sp.programme_id, sp.pool)
+                   sp.programme_id, p.institution_id, sp.pool::text as pool,
+                   sp.approved_seats, sp.academic_year
+            from public.seat_pools sp
+            join public.programmes p on p.id = sp.programme_id
+            where sp.academic_year = %s and p.institution_id = any(%s::uuid[])
+            order by sp.programme_id, sp.pool, sp.rule_version desc
+            """,
+            (academic_year, institution_ids),
+        ).fetchall()
+    else:
+        seat_pools_rows = conn.execute(
+            """
+            select distinct on (sp.programme_id, sp.pool)
+                   sp.programme_id, p.institution_id, sp.pool::text as pool,
+                   sp.approved_seats, sp.academic_year
+            from public.seat_pools sp
+            join public.programmes p on p.id = sp.programme_id
+            where sp.academic_year = %s
+            order by sp.programme_id, sp.pool, sp.rule_version desc
+            """,
+            (academic_year,),
+        ).fetchall()
+
+    # 4. Blind match pairs (stored on review_cases of kind blind_match)
+    if institution_ids:
+        inst_ids_str = [str(i) for i in institution_ids]
+        bm_rows = conn.execute(
+            """
+            select id, evidence from public.review_cases
+            where kind = 'blind_match' and evidence ? 'pair_key'
+              and (
+                evidence->>'institution_a_id' = any(%s) or evidence->>'institution_b_id' = any(%s)
+              )
+              and (
+                evidence->>'academic_year_a' = %s or evidence->>'academic_year_a' is null
+                or evidence->>'academic_year_b' = %s or evidence->>'academic_year_b' is null
+              )
+            """,
+            (inst_ids_str, inst_ids_str, academic_year, academic_year),
+        ).fetchall()
+    else:
+        bm_rows = conn.execute(
+            """
+            select id, evidence from public.review_cases
+            where kind = 'blind_match' and evidence ? 'pair_key'
+              and (
+                evidence->>'academic_year_a' = %s or evidence->>'academic_year_a' is null
+                or evidence->>'academic_year_b' = %s or evidence->>'academic_year_b' is null
+              )
+            """,
+            (academic_year, academic_year),
+        ).fetchall()
+
+    # Group records by institution_id
+    admissions_by_inst: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for a in admissions_rows:
+        admissions_by_inst[str(a["institution_id"])].append(dict(a))
+
+    rc_by_inst: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for rc in rc_rows:
+        rc_by_inst[str(rc["institution_id"])].append(dict(rc))
+
+    seat_pools_by_inst: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for sp in seat_pools_rows:
+        seat_pools_by_inst[str(sp["institution_id"])].append(dict(sp))
+
+    bm_by_inst: dict[str, list[MatchCase]] = defaultdict(list)
+    for bm in bm_rows:
+        ev = bm.get("evidence") if isinstance(bm.get("evidence"), dict) else {}
+        score = float(ev.get("dice") or ev.get("similarity_score") or 1.0)
+        inst_a = str(ev.get("institution_a_id") or "")
+        inst_b = str(ev.get("institution_b_id") or "")
+        mc = MatchCase(
+            institution_a=inst_a,
+            institution_b=inst_b,
+            student_a_id=str(ev.get("student_a_id") or ""),
+            student_b_id=str(ev.get("student_b_id") or ""),
+            similarity_score=score,
+            confidence=score,
+            case_id=str(bm["id"]),
+            matched_fields=list(ev.get("matched_on") or []),
+        )
+        if inst_a:
+            bm_by_inst[inst_a].append(mc)
+        if inst_b and inst_b != inst_a:
+            bm_by_inst[inst_b].append(mc)
+
     institutions_data: list[dict[str, Any]] = []
     for inst in inst_rows:
         inst_id = str(inst["id"])
-
-        admissions = conn.execute(
-            """
-            select * from public.admissions
-            where institution_id = %s and academic_year = %s and active
-            """,
-            (inst_id, academic_year),
-        ).fetchall()
-
-        review_cases = conn.execute(
-            "select * from public.review_cases where institution_id = %s",
-            (inst_id,),
-        ).fetchall()
-
-        seat_pools = conn.execute(
-            """
-            select sp.pool, sp.approved_seats, sp.academic_year
-            from public.seat_pools sp
-            join public.programmes p on p.id = sp.programme_id
-            where p.institution_id = %s and sp.academic_year = %s
-            """,
-            (inst_id, academic_year),
-        ).fetchall()
-
-        blind_match_rows = conn.execute(
-            """
-            select * from public.blind_match_pairs
-            where institution_a = %s or institution_b = %s
-            """,
-            (inst_id, inst_id),
-        ).fetchall()
+        rcs = rc_by_inst.get(inst_id, [])
 
         signals: list[Signal] = []
-        for rc in review_cases:
+        for rc in rcs:
             ev = rc.get("evidence") if isinstance(rc.get("evidence"), dict) else {}
-            code = str(ev.get("rule_code") or rc.get("kind", "").upper())
+            code = str(ev.get("rule_code") or ev.get("code") or rc.get("kind", "").upper())
+            severity = (
+                "error"
+                if rc.get("kind") in ("intake_overrun", "overrun")
+                else "review"
+                if "DUP" in code or "CLUSTER" in code
+                else "warning"
+            )
             signals.append(
                 Signal(
                     code=code,
+                    signal_name=code,
                     institution_id=inst_id,
-                    severity="review"
-                    if rc.get("kind") in ("overrun", "blind_match")
-                    else "warning",
+                    severity=severity,
                     evidence=ev,
                     description=str(rc.get("title") or ""),
-                )
-            )
-
-        blind_matches: list[MatchCase] = []
-        for bm in blind_match_rows:
-            blind_matches.append(
-                MatchCase(
-                    institution_a=str(bm["institution_a"]),
-                    institution_b=str(bm["institution_b"]),
-                    student_a_id=str(bm["student_a_id"]),
-                    student_b_id=str(bm["student_b_id"]),
-                    similarity_score=float(bm.get("similarity_score") or 1.0),
-                    confidence=float(bm.get("similarity_score") or 1.0),
                 )
             )
 
@@ -107,10 +220,10 @@ def compute_institution_results(
             {
                 "institution_id": inst_id,
                 "inst": inst,
-                "admissions": [dict(a) for a in admissions],
+                "admissions": admissions_by_inst.get(inst_id, []),
                 "signals": signals,
-                "seat_pools": [dict(sp) for sp in seat_pools],
-                "blind_matches": blind_matches,
+                "seat_pools": seat_pools_by_inst.get(inst_id, []),
+                "blind_matches": bm_by_inst.get(inst_id, []),
             }
         )
 
