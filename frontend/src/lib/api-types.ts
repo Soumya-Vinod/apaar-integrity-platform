@@ -888,6 +888,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * States
+         * @description Per state: institutions, active admissions against approved seats, programmes over
+         *     intake, open review cases and the average Integrity Score. Aggregates only.
+         */
+        get: operations["states_reports_states_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/accreditation/{institution_id}": {
         parameters: {
             query?: never;
@@ -2409,6 +2430,65 @@ export interface components {
             demo_headers: {
                 [key: string]: string;
             };
+        };
+        /** StateInstitution */
+        StateInstitution: {
+            /** Institution Id */
+            institution_id: string;
+            /** Name */
+            name: string;
+            /** Aicte Code */
+            aicte_code: string;
+            /** Integrity Score */
+            integrity_score: number | null;
+            /** Open Review Cases */
+            open_review_cases: number;
+            /** Overrun */
+            overrun: boolean;
+        };
+        /** StateReport */
+        StateReport: {
+            /** Academic Year */
+            academic_year: string;
+            totals: components["schemas"]["StateTotals"];
+            /** Rows */
+            rows: components["schemas"]["StateRow"][];
+        };
+        /** StateRow */
+        StateRow: {
+            /** State */
+            state: string;
+            /** Institutions */
+            institutions: number;
+            /** Active Admissions */
+            active_admissions: number;
+            /** Approved Seats */
+            approved_seats: number;
+            /** Utilisation */
+            utilisation: number | null;
+            /** Overrun Programmes */
+            overrun_programmes: number;
+            /** Open Review Cases */
+            open_review_cases: number;
+            /** Avg Integrity Score */
+            avg_integrity_score: number | null;
+            /** Institutions List */
+            institutions_list: components["schemas"]["StateInstitution"][];
+        };
+        /** StateTotals */
+        StateTotals: {
+            /** Institutions */
+            institutions: number;
+            /** Active Admissions */
+            active_admissions: number;
+            /** Approved Seats */
+            approved_seats: number;
+            /** Overrun Programmes */
+            overrun_programmes: number;
+            /** Open Review Cases */
+            open_review_cases: number;
+            /** States */
+            states: number;
         };
         /**
          * StudentPortalResponse
@@ -4323,6 +4403,41 @@ export interface operations {
                     "application/json": components["schemas"]["EnrolmentReport"];
                     "application/pdf": unknown;
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    states_reports_states_get: {
+        parameters: {
+            query?: {
+                academic_year?: string;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StateReport"];
                 };
             };
             /** @description Validation Error */

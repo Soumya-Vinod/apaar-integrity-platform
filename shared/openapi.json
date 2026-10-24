@@ -4498,6 +4498,98 @@
         }
       }
     },
+    "/reports/states": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "States",
+        "description": "Per state: institutions, active admissions against approved seats, programmes over\nintake, open review cases and the average Integrity Score. Aggregates only.",
+        "operationId": "states_reports_states_get",
+        "parameters": [
+          {
+            "name": "academic_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "2026-27",
+              "title": "Academic Year"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/reports/accreditation/{institution_id}": {
       "get": {
         "tags": [
@@ -8695,6 +8787,184 @@
           "demo_headers"
         ],
         "title": "SsoMockResponse"
+      },
+      "StateInstitution": {
+        "properties": {
+          "institution_id": {
+            "type": "string",
+            "title": "Institution Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "aicte_code": {
+            "type": "string",
+            "title": "Aicte Code"
+          },
+          "integrity_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrity Score"
+          },
+          "open_review_cases": {
+            "type": "integer",
+            "title": "Open Review Cases"
+          },
+          "overrun": {
+            "type": "boolean",
+            "title": "Overrun"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution_id",
+          "name",
+          "aicte_code",
+          "integrity_score",
+          "open_review_cases",
+          "overrun"
+        ],
+        "title": "StateInstitution"
+      },
+      "StateReport": {
+        "properties": {
+          "academic_year": {
+            "type": "string",
+            "title": "Academic Year"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/StateTotals"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/StateRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "academic_year",
+          "totals",
+          "rows"
+        ],
+        "title": "StateReport"
+      },
+      "StateRow": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "institutions": {
+            "type": "integer",
+            "title": "Institutions"
+          },
+          "active_admissions": {
+            "type": "integer",
+            "title": "Active Admissions"
+          },
+          "approved_seats": {
+            "type": "integer",
+            "title": "Approved Seats"
+          },
+          "utilisation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Utilisation"
+          },
+          "overrun_programmes": {
+            "type": "integer",
+            "title": "Overrun Programmes"
+          },
+          "open_review_cases": {
+            "type": "integer",
+            "title": "Open Review Cases"
+          },
+          "avg_integrity_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Integrity Score"
+          },
+          "institutions_list": {
+            "items": {
+              "$ref": "#/components/schemas/StateInstitution"
+            },
+            "type": "array",
+            "title": "Institutions List"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "institutions",
+          "active_admissions",
+          "approved_seats",
+          "utilisation",
+          "overrun_programmes",
+          "open_review_cases",
+          "avg_integrity_score",
+          "institutions_list"
+        ],
+        "title": "StateRow"
+      },
+      "StateTotals": {
+        "properties": {
+          "institutions": {
+            "type": "integer",
+            "title": "Institutions"
+          },
+          "active_admissions": {
+            "type": "integer",
+            "title": "Active Admissions"
+          },
+          "approved_seats": {
+            "type": "integer",
+            "title": "Approved Seats"
+          },
+          "overrun_programmes": {
+            "type": "integer",
+            "title": "Overrun Programmes"
+          },
+          "open_review_cases": {
+            "type": "integer",
+            "title": "Open Review Cases"
+          },
+          "states": {
+            "type": "integer",
+            "title": "States"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institutions",
+          "active_admissions",
+          "approved_seats",
+          "overrun_programmes",
+          "open_review_cases",
+          "states"
+        ],
+        "title": "StateTotals"
       },
       "StudentPortalResponse": {
         "properties": {
