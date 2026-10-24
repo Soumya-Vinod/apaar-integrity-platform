@@ -1,24 +1,15 @@
 // Owner: Dev D
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useIdentity } from "../../lib/roles";
+import type { components } from "../../lib/api-types";
 
-interface BlindMatchCase {
-  id: string;
-  record_a: string;
-  record_b: string;
-  institution_a_id: string;
-  institution_b_id: string;
-  dice: number;
-  fields_compared: string[];
-  status: string;
-  review_case_id: string | null;
-}
+type BlindMatchCase = components["schemas"]["BlindMatchCase"];
 
 function formatScore(score: number) {
-  if (!Number.isFinite(score)) return "Unavailable";
-  return score.toFixed(3);
+  return Number.isFinite(score) ? score.toFixed(3) : "Unavailable";
 }
 
 function scorePercent(score: number) {
@@ -27,27 +18,98 @@ function scorePercent(score: number) {
   return Math.max(0, Math.min(100, percent));
 }
 
+function formatDate(value?: string | null) {
+  if (!value) return "Timestamp unavailable";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Timestamp unavailable"
+    : date.toLocaleString();
+}
+
 function statusStyle(status: string) {
-  const normalized = status.toLowerCase();
-
-  if (normalized.includes("match") || normalized.includes("review")) {
-    return "border-amber-200 bg-amber-50 text-amber-800";
+  switch (status.toLowerCase()) {
+    case "confirmed":
+    case "dismissed":
+      return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    case "open":
+    case "correction_requested":
+      return "border-amber-200 bg-amber-50 text-amber-800";
+    default:
+      return "border-slate-200 bg-slate-100 text-slate-700";
   }
+}
 
-  if (
-    normalized.includes("clear") ||
-    normalized.includes("dismiss") ||
-    normalized.includes("no_match")
-  ) {
-    return "border-emerald-200 bg-emerald-50 text-emerald-800";
-  }
+function BarcodeAnimation() {
+  const bars = [
+    2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 4, 2, 1, 3, 1, 2,
+    4, 1, 3, 2, 1, 4, 1, 2, 3, 1, 2, 4, 1, 3, 2, 1, 4, 2,
+  ];
 
-  return "border-slate-200 bg-slate-100 text-slate-700";
+  return (
+    <div className="w-full max-w-64">
+      <style>
+        {`
+          @keyframes blind-match-scan {
+            from { left: 4%; }
+            to { left: 96%; }
+          }
+        `}
+      </style>
+
+      <div className="relative overflow-hidden rounded-xl border border-cyan-400/20 bg-slate-900 p-4">
+        <div
+          aria-hidden="true"
+          className="relative flex h-20 items-center justify-center gap-[3px] overflow-hidden"
+        >
+          {bars.map((width, index) => (
+            <span
+              key={index}
+              className="shrink-0 rounded-sm bg-cyan-300/80"
+              style={{
+                width: `${width * 2}px`,
+                height: `${35 + ((index * 17) % 45)}%`,
+              }}
+            />
+          ))}
+
+          <span
+            className="absolute inset-y-0 w-1 bg-cyan-300 shadow-[0_0_18px_5px_rgba(103,232,249,0.35)]"
+            style={{
+              animation:
+                "blind-match-scan 2.5s ease-in-out infinite alternate",
+            }}
+          />
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan-300">
+            Blind comparison
+          </span>
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+        </div>
+      </div>
+
+      <p className="mt-2 text-center text-xs leading-5 text-slate-400">
+        Illustrative animation · No identity data encoded
+      </p>
+    </div>
+  );
+}
+
+function MetadataValue({ value }: { value?: string | null }) {
+  return (
+    <p className="mt-1 break-words text-sm text-slate-700">
+      {value || "Not available"}
+    </p>
+  );
 }
 
 export default function BlindMatchPage() {
   const { role } = useIdentity();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const canSeeIdentityHints =
+    role === "aicte_admin" || role === "auditor";
 
   const query = useQuery({
     queryKey: ["blind-match-cases", role],
@@ -55,7 +117,8 @@ export default function BlindMatchPage() {
   });
 
   const cases = Array.isArray(query.data) ? query.data : [];
-  const selectedCase = cases.find((item) => item.id === selectedId) ?? cases[0];
+  const selectedCase =
+    cases.find((item) => item.id === selectedId) ?? cases[0];
 
   const averageScore =
     cases.length > 0
@@ -64,66 +127,86 @@ export default function BlindMatchPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <section className="overflow-hidden rounded-2xl bg-slate-950 text-white">
-        <div className="grid gap-6 p-6 sm:p-8 md:grid-cols-[1fr_auto] md:items-center">
+        <div className="grid gap-6 p-6 sm:p-8 md:grid-cols-[minmax(0,1fr)_minmax(180px,256px)] md:items-center">
           <div>
-            <div className="mb-3 flex items-center gap-2">
-              <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-cyan-300">
-                Privacy-preserving matching
-              </span>
+            <div className="mb-3 inline-flex rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-cyan-300">
+              Privacy-preserving matching
             </div>
+
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               Blind Match
             </h1>
+
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
               Explore potential cross-institution identity matches using
-              similarity scores, without displaying student identity details.
+              similarity scores while respecting the identity visibility
+              rules returned by the API.
             </p>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                Dice similarity
+              </span>
+              <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                Role-based visibility
+              </span>
+            </div>
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/5 p-5 md:min-w-36">
-            <p className="text-sm text-slate-400">Cases returned</p>
-            <p className="mt-1 text-3xl font-semibold tabular-nums">
-              {query.isSuccess ? cases.length : "—"}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">From the cases API</p>
-          </div>
+          <BarcodeAnimation />
         </div>
 
         <div className="grid grid-cols-1 border-t border-white/10 sm:grid-cols-3">
           <div className="border-b border-white/10 p-4 sm:border-b-0 sm:border-r">
             <p className="text-xs uppercase tracking-wider text-slate-400">
-              Matching method
+              Cases returned
             </p>
-            <p className="mt-1 font-medium">Dice similarity</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">
+              {query.isSuccess ? cases.length : "—"}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">From the cases API</p>
           </div>
+
           <div className="border-b border-white/10 p-4 sm:border-b-0 sm:border-r">
             <p className="text-xs uppercase tracking-wider text-slate-400">
               Identity exposure
             </p>
-            <p className="mt-1 font-medium">No identity fields shown</p>
+            <p className="mt-1 font-medium">Role-restricted</p>
+            <p className="mt-1 text-xs text-slate-400">
+              API-enforced visibility
+            </p>
           </div>
+
           <div className="p-4">
             <p className="text-xs uppercase tracking-wider text-slate-400">
               Average returned score
             </p>
-            <p className="mt-1 font-medium tabular-nums">
+            <p className="mt-1 text-2xl font-semibold tabular-nums">
               {averageScore === null ? "—" : formatScore(averageScore)}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              Across returned cases
             </p>
           </div>
         </div>
       </section>
 
+      {/* Loading */}
       {query.isPending && (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
-          <p className="mt-4 font-medium text-slate-800">Loading match cases</p>
+          <p className="mt-4 font-medium text-slate-800">
+            Loading match cases
+          </p>
           <p className="mt-1 text-sm text-slate-500">
-            Retrieving the available case records.
+            Retrieving available case records.
           </p>
         </div>
       )}
 
+      {/* Error */}
       {query.isError && (
         <div
           role="alert"
@@ -133,7 +216,7 @@ export default function BlindMatchPage() {
             Could not load match cases
           </h2>
           <p className="mt-1 text-sm text-red-800">
-            Check your API connection and demo role, then try again.
+            Check your API connection and permissions, then try again.
           </p>
           <button
             type="button"
@@ -145,6 +228,7 @@ export default function BlindMatchPage() {
         </div>
       )}
 
+      {/* Empty state */}
       {query.isSuccess && cases.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-500">
@@ -154,12 +238,13 @@ export default function BlindMatchPage() {
             No match cases yet
           </h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-            No cases were returned by the API. When matching cases become
-            available, they will appear here.
+            No cases were returned by the API. Available matching cases will
+            appear here.
           </p>
         </div>
       )}
 
+      {/* Case list and details */}
       {query.isSuccess && cases.length > 0 && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <section className="min-w-0 space-y-3">
@@ -169,7 +254,7 @@ export default function BlindMatchPage() {
                   Match cases
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Select a case to inspect its score and status.
+                  Select a case to inspect its score and details.
                 </p>
               </div>
               <span className="text-xs text-slate-500">
@@ -199,7 +284,7 @@ export default function BlindMatchPage() {
                           {item.id}
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
-                          Similarity score
+                          Dice similarity
                         </p>
                       </div>
                       <span
@@ -220,6 +305,12 @@ export default function BlindMatchPage() {
                         {formatScore(item.dice)}
                       </span>
                     </div>
+
+                    {item.created_at && (
+                      <p className="mt-3 text-xs text-slate-500">
+                        Created {formatDate(item.created_at)}
+                      </p>
+                    )}
                   </button>
                 );
               })}
@@ -238,6 +329,7 @@ export default function BlindMatchPage() {
 
             {selectedCase && (
               <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                {/* Selected case heading */}
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -254,6 +346,7 @@ export default function BlindMatchPage() {
                   </span>
                 </div>
 
+                {/* Score */}
                 <div className="rounded-xl bg-slate-50 p-5">
                   <p className="text-sm font-medium text-slate-600">
                     Returned Dice score
@@ -263,20 +356,20 @@ export default function BlindMatchPage() {
                   </p>
                   <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
                     <div
-                      className="h-full rounded-full bg-blue-600"
+                      className="h-full rounded-full bg-blue-600 transition-all"
                       style={{
                         width: `${scorePercent(selectedCase.dice)}%`,
                       }}
                     />
                   </div>
                   <p className="mt-2 text-xs leading-5 text-slate-500">
-                    The score is displayed as returned by the matching service.
-                    It represents similarity, not the probability that two
-                    records belong to the same person. Review the case before
+                    Similarity is not the probability that two records belong
+                    to the same person. Review the available evidence before
                     making a decision.
                   </p>
                 </div>
 
+                {/* References */}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border border-slate-200 p-4">
                     <p className="text-xs text-slate-500">Case reference</p>
@@ -285,43 +378,117 @@ export default function BlindMatchPage() {
                     </p>
                   </div>
                   <div className="rounded-xl border border-slate-200 p-4">
-                    <p className="text-xs text-slate-500">Current status</p>
-                    <p className="mt-1 break-words text-sm font-semibold capitalize text-slate-900">
-                      {selectedCase.status.replaceAll("_", " ")}
+                    <p className="text-xs text-slate-500">Review case</p>
+                    <p className="mt-1 break-all text-sm font-semibold text-slate-900">
+                      {selectedCase.review_case_id || "Not linked"}
                     </p>
                   </div>
                 </div>
 
+                {/* Record and institution IDs */}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border border-slate-200 p-4">
                     <p className="text-xs text-slate-500">Record A</p>
-                    <p className="mt-1 break-all text-sm font-medium text-slate-900">
-                      {selectedCase.record_a}
-                    </p>
+                    <MetadataValue value={selectedCase.record_a} />
                   </div>
-
                   <div className="rounded-xl border border-slate-200 p-4">
                     <p className="text-xs text-slate-500">Record B</p>
-                    <p className="mt-1 break-all text-sm font-medium text-slate-900">
-                      {selectedCase.record_b}
-                    </p>
+                    <MetadataValue value={selectedCase.record_b} />
                   </div>
-
                   <div className="rounded-xl border border-slate-200 p-4">
                     <p className="text-xs text-slate-500">Institution A</p>
-                    <p className="mt-1 break-all text-sm font-medium text-slate-900">
-                      {selectedCase.institution_a_id}
-                    </p>
+                    <MetadataValue
+                      value={
+                        selectedCase.institution_a_name ||
+                        (selectedCase.institution_a_id === "hidden"
+                          ? "Hidden institution"
+                          : selectedCase.institution_a_id)
+                      }
+                    />
                   </div>
-
                   <div className="rounded-xl border border-slate-200 p-4">
                     <p className="text-xs text-slate-500">Institution B</p>
-                    <p className="mt-1 break-all text-sm font-medium text-slate-900">
-                      {selectedCase.institution_b_id}
-                    </p>
+                    <MetadataValue
+                      value={
+                        selectedCase.institution_b_name ||
+                        (selectedCase.institution_b_id === "hidden"
+                          ? "Hidden institution"
+                          : selectedCase.institution_b_id)
+                      }
+                    />
                   </div>
                 </div>
 
+                {/* Programme metadata */}
+                <div className="rounded-xl border border-slate-200 p-4">
+                  <h4 className="text-sm font-semibold text-slate-900">
+                    Institution and programme details
+                  </h4>
+
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-slate-500">Institution A</p>
+                      <MetadataValue
+                        value={
+                          [
+                            selectedCase.programme_a,
+                            selectedCase.academic_year_a,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "Programme details unavailable"
+                        }
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Institution B</p>
+                      <MetadataValue
+                        value={
+                          [
+                            selectedCase.programme_b,
+                            selectedCase.academic_year_b,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "Programme details unavailable"
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 border-t border-slate-100 pt-3">
+                    <p className="text-xs text-slate-500">Case created</p>
+                    <MetadataValue value={formatDate(selectedCase.created_at)} />
+                  </div>
+                </div>
+
+                {/* Restricted identity hints */}
+                {canSeeIdentityHints &&
+                  (selectedCase.identity_hint_a ||
+                    selectedCase.identity_hint_b) && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <h4 className="text-sm font-semibold text-amber-950">
+                        Restricted identity hints
+                      </h4>
+                      <p className="mt-1 text-xs leading-5 text-amber-800">
+                        Visible only to AICTE administrators and auditors.
+                      </p>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <p className="text-xs text-amber-800">Hint A</p>
+                          <MetadataValue
+                            value={selectedCase.identity_hint_a}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs text-amber-800">Hint B</p>
+                          <MetadataValue
+                            value={selectedCase.identity_hint_b}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                {/* Compared fields */}
                 <div className="rounded-xl border border-slate-200 p-4">
                   <h4 className="text-sm font-semibold text-slate-900">
                     Fields compared
@@ -345,25 +512,18 @@ export default function BlindMatchPage() {
                   )}
                 </div>
 
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="text-xs text-slate-500">
-                    Review case reference
-                  </p>
-                  <p className="mt-1 break-all text-sm font-medium text-slate-900">
-                    {selectedCase.review_case_id ??
-                      "Not linked to a review case"}
-                  </p>
-                </div>
-
+                {/* Privacy notice */}
                 <div className="flex items-start gap-3 rounded-xl border border-cyan-100 bg-cyan-50 p-4">
-                  <span className="mt-0.5 text-cyan-800" aria-hidden="true">
-                    ⓘ
+                  <span
+                    className="mt-0.5 font-semibold text-cyan-800"
+                    aria-hidden="true"
+                  >
+                    i
                   </span>
                   <p className="text-sm leading-6 text-cyan-950">
-                    This view intentionally excludes student identity
-                    information. A similarity score alone is not proof of a
-                    duplicate; review the evidence and the matching service's
-                    configured threshold before making a decision.
+                    This screen displays only information returned by the API.
+                    Identity visibility must be enforced by the backend.
+                    A similarity score alone is not proof of a duplicate.
                   </p>
                 </div>
               </div>
@@ -373,9 +533,8 @@ export default function BlindMatchPage() {
       )}
 
       <p className="text-xs leading-5 text-slate-500">
-        API: <code>/blind-match/cases</code>. Scores and statuses are displayed
-        as returned by the service; this screen does not perform identity
-        matching itself.
+        API: <code>/blind-match/cases</code>. This page displays returned case
+        data; it does not perform identity matching itself.
       </p>
     </div>
   );
