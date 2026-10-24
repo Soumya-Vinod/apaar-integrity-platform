@@ -1,8 +1,9 @@
 // Owner: Dev E
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { ApiError, api } from '../../lib/api'
+import { API_URL, ApiError, api } from '../../lib/api'
 import type { components } from '../../lib/api-types'
+import { getIdentity } from '../../lib/roles'
 
 type Credential = components['schemas']['Credential']
 type CredentialRequest = components['schemas']['CredentialRequest']
@@ -372,6 +373,66 @@ interface RecordsState {
   onStatusChange: (admissionId: string, status: Admission['status']) => void
 }
 
+// Downloads GET /students/me/certificate. Uses fetch directly because api() reads the body
+// as JSON or text, which would corrupt the PDF; the demo headers are the same.
+function CertificateDownload() {
+  const [downloading, setDownloading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function download() {
+    setDownloading(true)
+    setError(null)
+    try {
+      const { role, institutionId } = getIdentity()
+      const headers = new Headers({ 'X-Demo-Role': role })
+      if (institutionId) headers.set('X-Demo-Institution', institutionId)
+      const response = await fetch(`${API_URL}/students/me/certificate`, { headers })
+      if (!response.ok) {
+        const body: unknown = await response.json().catch(() => null)
+        const detail = (body as { detail?: unknown } | null)?.detail
+        const message =
+          typeof detail === 'string'
+            ? detail
+            : (detail as { message?: string } | undefined)?.message
+        throw new Error(message ?? `The certificate could not be created (${response.status}).`)
+      }
+      const certificateId = response.headers.get('X-Certificate-Id') ?? 'enrolment'
+      const url = URL.createObjectURL(await response.blob())
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `certificate-${certificateId.split('-')[0]}.pdf`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (downloadError) {
+      setError(
+        downloadError instanceof TypeError
+          ? 'We could not reach the service. Check that the backend is running and try again.'
+          : (downloadError as Error).message,
+      )
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-2 sm:items-end">
+      <button
+        type="button"
+        disabled={downloading}
+        onClick={() => void download()}
+        className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {downloading ? 'Preparing…' : 'Download enrolment certificate'}
+      </button>
+      {error && (
+        <p role="alert" className="text-sm text-red-700">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function MyRecords({ records, loading, error, onRetry, onStatusChange }: RecordsState) {
   const [respondingId, setRespondingId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -413,9 +474,12 @@ function MyRecords({ records, loading, error, onRetry, onStatusChange }: Records
 
   return (
     <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">My records</h2>
-        <p className="mt-1 text-sm text-slate-600">Review the admission records linked to you.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">My records</h2>
+          <p className="mt-1 text-sm text-slate-600">Review the admission records linked to you.</p>
+        </div>
+        <CertificateDownload />
       </div>
       {toast && (
         <div role="status" className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white">
