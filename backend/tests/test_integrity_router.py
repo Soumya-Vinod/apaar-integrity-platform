@@ -50,7 +50,6 @@ def test_integrity_role_guard(client):
     assert client.get("/integrity/institutions", headers=as_role("auditor")).status_code == 200
 
 
-
 def test_integrity_endpoints_in_real_mode(client, settings_override):
     """When REAL_DOMAINS contains 'integrity', retrieves persisted results with X-Mock: false."""
     settings_override(real_domains="integrity", database_url="postgresql://fake:fake@localhost/fake")
@@ -116,7 +115,7 @@ def test_integrity_endpoints_in_real_mode(client, settings_override):
     ):
         mock_tx.return_value.__enter__.return_value = mock_conn
 
-        def side_effect_latest_for(conn, inst_id, year="2026-27"):
+        def side_effect_latest_for(conn, inst_id, year=None):
             if inst_id == SHADOW:
                 return persisted_detail
             return None
@@ -154,6 +153,58 @@ def test_integrity_endpoints_in_real_mode(client, settings_override):
         assert res_unknown.status_code == 404
 
 
+def test_integrity_real_mode_empty_table(client, settings_override):
+    """When integrity_scores is empty in REAL mode, returns [] with 200 OK without errors."""
+    settings_override(real_domains="integrity", database_url="postgresql://fake:fake@localhost/fake")
+    mock_conn = MagicMock()
+    with (
+        patch("app.routers.integrity.transaction") as mock_tx,
+        patch("app.services.integrity_store.latest_rankings", return_value=[]),
+    ):
+        mock_tx.return_value.__enter__.return_value = mock_conn
+        res = client.get("/integrity/institutions", headers=as_role("aicte_admin"))
+        assert res.status_code == 200
+        assert res.headers["X-Mock"] == "false"
+        assert res.json() == []
+
+
+def test_canonical_cli_execution():
+    """Verify scripts.compute_integrity argument parser and execution."""
+    from scripts.compute_integrity import build_parser, main
+
+    # 1. Test argument parser
+    parser = build_parser()
+    args = parser.parse_args(["--year", "2027-28", "--institutions", SHADOW, NARMADA])
+    assert args.year == "2027-28"
+    assert args.institutions == [SHADOW, NARMADA]
+
+    # 2. Test execution without DATABASE_URL returns error code 2
+    with (
+        patch("scripts.compute_integrity.get_settings") as mock_settings,
+        patch("sys.stderr"),
+    ):
+        mock_settings.return_value.database_url = ""
+        assert main([]) == 2
+
+    # 3. Test execution with DATABASE_URL calls compute and save
+    fake_results = [{"institution_id": SHADOW}]
+    with (
+        patch("scripts.compute_integrity.get_settings") as mock_settings,
+        patch("scripts.compute_integrity.transaction") as mock_tx,
+        patch(
+            "scripts.compute_integrity.compute_institution_results", return_value=fake_results
+        ) as mock_compute,
+        patch("scripts.compute_integrity.save_results", return_value=1) as mock_save,
+        patch("scripts.compute_integrity.close_pool"),
+    ):
+        mock_settings.return_value.database_url = "postgresql://fake:fake@localhost/fake"
+        mock_tx.return_value.__enter__.return_value = MagicMock()
+        ret = main(["--year", "2026-27"])
+        assert ret == 0
+        mock_compute.assert_called_once()
+        mock_save.assert_called_once()
+
+
 def test_compute_integrity_persistence():
     """Verify compute_and_save_integrity calls integrity_store.save_results."""
     from app.services.integrity import compute_and_save_integrity
@@ -176,3 +227,33 @@ def test_compute_integrity_persistence():
         count = compute_and_save_integrity(mock_conn, results=sample_results)
         assert count == 1
         mock_save.assert_called_once_with(mock_conn, sample_results)
+
+
+def test_latest_for_academic_year_optional():
+    """Verify latest_for queries with year when provided, and without when None."""
+    from app.services import integrity_store
+
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = {
+        "institution_id": SHADOW,
+        "academic_year": "2026-27",
+        "score": 50.0,
+        "tier": "medium",
+        "components": {},
+        "top_features": [],
+        "signals": [],
+        "model_version": "0.1.0",
+        "computed_at": "2026-10-24T06:00:00Z",
+    }
+
+    # 1. With explicit year
+    res_year = integrity_store.latest_for(mock_conn, SHADOW, "2026-27")
+    assert res_year is not None
+    assert "academic_year = %s" in mock_conn.execute.call_args[0][0]
+    assert mock_conn.execute.call_args[0][1] == (SHADOW, "2026-27")
+
+    # 2. Without year (None)
+    res_none = integrity_store.latest_for(mock_conn, SHADOW, None)
+    assert res_none is not None
+    assert "academic_year = %s" not in mock_conn.execute.call_args[0][0]
+    assert mock_conn.execute.call_args[0][1] == (SHADOW,)
