@@ -40,20 +40,24 @@ export function useMockMode(): boolean {
   )
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+export type ApiResponse<T> = { data: T; isMock: boolean }
+
+/** Fetch data with X-Mock metadata for this exact response. */
+export async function apiWithMetadata<T>(path: string, init: RequestInit = {}): Promise<ApiResponse<T>> {
   const { role, institutionId } = getIdentity()
   const headers = new Headers(init.headers)
   headers.set('X-Demo-Role', role)
   if (institutionId) headers.set('X-Demo-Institution', institutionId)
-  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json')
-  }
-
+  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   const response = await fetch(`${API_URL}${path}`, { ...init, headers })
-  setLastMock(response.headers.get('X-Mock') === 'true')
-
+  const isMock = response.headers.get('X-Mock') === 'true'
+  setLastMock(isMock)
   const isJson = response.headers.get('Content-Type')?.includes('application/json')
   const body: unknown = isJson ? await response.json() : await response.text()
   if (!response.ok) throw new ApiError(response.status, body)
-  return body as T
+  return { data: body as T, isMock }
+}
+
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return (await apiWithMetadata<T>(path, init)).data
 }
