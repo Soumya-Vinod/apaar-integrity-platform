@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
 import { API_URL, apiWithMetadata } from "../../lib/api";
 import { getIdentity } from "../../lib/roles";
+import { apiErrorMessage } from "../../components/format";
 
 type IntegrityRanking = components["schemas"]["IntegrityRanking"];
 type EnrolmentReport = components["schemas"]["EnrolmentReport"];
@@ -33,9 +34,7 @@ function ErrorMessage({ message }: { message: string }) {
 }
 
 function readableError(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : "An unexpected error occurred.";
+  return apiErrorMessage(error);
 }
 
 async function downloadReport(

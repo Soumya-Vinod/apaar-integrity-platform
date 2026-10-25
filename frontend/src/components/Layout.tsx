@@ -2,7 +2,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useSyncExternalStore } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useMockMode } from '../lib/api'
 import {
   ROLES,
   ROUTES,
@@ -113,7 +112,6 @@ function AccessPanel({ pathname, role, onSwitch }: {
 
 export default function Layout() {
   const { role } = useIdentity()
-  const mock = useMockMode()
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -158,18 +156,16 @@ export default function Layout() {
               <span className="hidden sm:inline"> Platform</span>
             </span>
           </Link>
-          {mock && (
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
-                dark
-                  ? 'bg-amber-300/15 text-amber-200 ring-amber-300/30'
-                  : 'bg-amber-50 text-amber-800 ring-amber-200'
-              }`}
-              title="Demo roles instead of sign-in; the API is returning synthetic fixtures"
-            >
-              Demo login · synthetic data
-            </span>
-          )}
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
+              dark
+                ? 'bg-amber-300/15 text-amber-200 ring-amber-300/30'
+                : 'bg-amber-50 text-amber-800 ring-amber-200'
+            }`}
+            title="Demo roles instead of sign-in; every record is synthetic"
+          >
+            Demo login · synthetic data
+          </span>
           <nav
             aria-label="Main"
             className="order-last -mx-1 flex w-full gap-1 overflow-x-auto px-1 pb-0.5 lg:order-none lg:mx-0 lg:w-auto lg:px-0 lg:pb-0"

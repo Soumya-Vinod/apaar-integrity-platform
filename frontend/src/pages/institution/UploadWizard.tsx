@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
-import { api, ApiError } from "../../lib/api";
+import { api } from "../../lib/api";
+import { apiErrorMessage } from "../../components/format";
 
 type Batch = components["schemas"]["Batch"];
 type UploadResult = Omit<
@@ -74,24 +75,6 @@ const severityStyles: Record<ValidationIssue["severity"], string> = {
   info: "bg-sky-100 text-sky-800",
 };
 
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    const body = error.body;
-    if (typeof body === "string" && body.trim()) return body;
-    if (body && typeof body === "object" && "detail" in body) {
-      const detail = body.detail;
-      if (typeof detail === "string") return detail;
-    }
-    if (error.status === 409) {
-      return "The submission window may be closed, or this operation conflicts with the current batch state.";
-    }
-    return `The API returned status ${error.status}.`;
-  }
-  return error instanceof Error
-    ? error.message
-    : "An unexpected error occurred.";
-}
-
 export default function UploadWizard({
   institutionId,
 }: {
@@ -150,7 +133,7 @@ export default function UploadWizard({
       setIssues([]);
       setStep("mapping");
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(apiErrorMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -185,7 +168,7 @@ export default function UploadWizard({
       setIssues(latestIssues);
       setStep("review");
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(apiErrorMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -222,7 +205,7 @@ export default function UploadWizard({
         queryKey: ["seat-ledger", institutionId],
       });
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(apiErrorMessage(cause));
     } finally {
       setBusy(false);
     }
