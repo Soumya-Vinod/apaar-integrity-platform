@@ -82,18 +82,27 @@ def eligibility_signal(
     cfg = {**DEFAULT_CONFIG, **(rules_config or {})}
 
     # Build approved intake map: (institution_id, programme_code) -> approved seats
+    # Build approved intake map: (institution_id, programme_code) -> approved seats
+    # and pool-level intake map if pool details are provided
     intake_map: dict[tuple[str, str], int] = {}
+    pool_intake_map: dict[tuple[str, str, str, str], int] = {}
     if seat_pools:
         for pool in seat_pools:
             if not isinstance(pool, dict):
                 continue
-            inst = str(pool.get("institution_id", ""))
+            inst = str(pool.get("institution_id") or pool.get("institution_aicte_code") or "")
             prog = str(pool.get("programme_code", ""))
             seats = int(pool.get("approved_seats", cfg["default_approved_intake"]))
             intake_map[(inst, prog)] = intake_map.get((inst, prog), 0) + seats
 
+            pool_name = str(pool.get("seat_pool") or pool.get("pool") or "").strip().lower()
+            year = str(pool.get("academic_year") or "").strip()
+            if pool_name and year:
+                pool_intake_map[(inst, prog, year, pool_name)] = seats
+
     # Group admissions and violations per institution
     inst_admissions_count: dict[tuple[str, str], int] = {}
+    pool_admissions_count: dict[tuple[str, str, str, str], int] = {}
     violations_by_inst: dict[str, list[dict[str, Any]]] = {}
 
     for row in admissions:
@@ -106,6 +115,13 @@ def eligibility_signal(
         # Track intake counts
         key = (inst_id, prog)
         inst_admissions_count[key] = inst_admissions_count.get(key, 0) + 1
+
+        # Track pool-level intake counts if seat_pool and academic_year are present
+        p_name = str(row.get("seat_pool") or row.get("quota") or "").strip().lower()
+        acad_year = str(row.get("academic_year") or "").strip()
+        if p_name and acad_year:
+            p_key = (inst_id, prog, acad_year, p_name)
+            pool_admissions_count[p_key] = pool_admissions_count.get(p_key, 0) + 1
 
         # 1. Qualifying Exam Percentage
         pct = row.get("qualifying_exam_pct")
@@ -206,21 +222,44 @@ def eligibility_signal(
             )
 
     # 6. Exceeded Approved Intake Check
-    for (inst_id, prog), count in inst_admissions_count.items():
-        approved = intake_map.get((inst_id, prog), cfg.get(f"intake_{prog}"))
-        if approved and count > approved:
-            violations_by_inst.setdefault(inst_id, []).append(
-                {
-                    "violated_rule": "EXCEEDED_INTAKE",
-                    "student_id": "INSTITUTION_BATCH",
-                    "programme": prog,
-                    "expected_value": f"<= {approved} seats",
-                    "actual_value": f"{count} admitted",
-                    "reason": (
-                        f"Total admitted ({count}) exceeds approved capacity of {approved} seats"
-                    ),
-                }
-            )
+    if pool_intake_map:
+        for (inst_id, prog, year, p_name), count in pool_admissions_count.items():
+            approved = pool_intake_map.get((inst_id, prog, year, p_name))
+            if approved is not None and count > approved:
+                pool_str = f"{inst_id}|{prog}|{year}|{p_name}"
+                violations_by_inst.setdefault(inst_id, []).append(
+                    {
+                        "violated_rule": "EXCEEDED_INTAKE",
+                        "student_id": pool_str,
+                        "pool_key": pool_str,
+                        "programme": prog,
+                        "seat_pool": p_name,
+                        "academic_year": year,
+                        "expected_value": f"<= {approved} seats",
+                        "actual_value": f"{count} admitted",
+                        "reason": (
+                            f"Pool '{p_name}' admitted ({count}) exceeds "
+                            f"approved capacity of {approved} seats"
+                        ),
+                    }
+                )
+    else:
+        for (inst_id, prog), count in inst_admissions_count.items():
+            approved = intake_map.get((inst_id, prog), cfg.get(f"intake_{prog}"))
+            if approved and count > approved:
+                violations_by_inst.setdefault(inst_id, []).append(
+                    {
+                        "violated_rule": "EXCEEDED_INTAKE",
+                        "student_id": "INSTITUTION_BATCH",
+                        "programme": prog,
+                        "expected_value": f"<= {approved} seats",
+                        "actual_value": f"{count} admitted",
+                        "reason": (
+                            f"Total admitted ({count}) exceeds approved "
+                            f"capacity of {approved} seats"
+                        ),
+                    }
+                )
 
     # Generate Signal objects
     signals: list[Signal] = []
