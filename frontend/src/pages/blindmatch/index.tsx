@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useIdentity } from "../../lib/roles";
-import RoleBadge from "../../components/RoleBadge";
+import { viewerHeader } from "../../lib/dashboards";
+import DashboardHeader, { ReadOnlyBanner } from "../../components/DashboardHeader";
 import type { components } from "../../lib/api-types";
 
 type BlindMatchCase = components["schemas"]["BlindMatchCase"];
@@ -124,71 +125,63 @@ export default function BlindMatchPage() {
       : null;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <section className="overflow-hidden rounded-2xl bg-slate-950 text-white">
-        <div className="grid gap-6 p-6 sm:p-8 md:grid-cols-[minmax(0,1fr)_minmax(180px,256px)] md:items-center">
-          <div>
-            <div className="mb-3 inline-flex rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-cyan-300">
-              Privacy-preserving matching
-            </div>
-
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              Blind Match
-            </h1>
-            <RoleBadge className="mt-3 inline-block" />
-
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-              Explore potential cross-institution identity matches using
-              similarity scores while respecting the identity visibility rules
-              returned by the API.
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
-                Dice similarity
-              </span>
-              <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
-                Role-based visibility
-              </span>
-            </div>
-          </div>
-
-          <BarcodeAnimation />
+    <div className="space-y-6" data-role-dashboard={role}>
+      {role === "auditor" && (
+        <ReadOnlyBanner>
+          You can view, verify and download. Decisions and edits are made by
+          AICTE admins.
+        </ReadOnlyBanner>
+      )}
+      <DashboardHeader
+        header={viewerHeader(
+          role,
+          "Blind Match",
+          "Same student at two institutions, found without sharing identity",
+        )}
+        eyebrow="Privacy-preserving matching"
+        actions={<BarcodeAnimation />}
+      >
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs text-white/85">
+            Dice similarity
+          </span>
+          <span className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs text-white/85">
+            Role-based visibility
+          </span>
         </div>
 
-        <div className="grid grid-cols-1 border-t border-white/10 sm:grid-cols-3">
-          <div className="border-b border-white/10 p-4 sm:border-b-0 sm:border-r">
-            <p className="text-xs uppercase tracking-wider text-slate-400">
+        <div className="mt-5 grid grid-cols-1 rounded-xl border border-white/15 bg-black/15 sm:grid-cols-3">
+          <div className="border-b border-white/15 p-4 sm:border-b-0 sm:border-r">
+            <p className="text-xs uppercase tracking-wider text-white/65">
               Cases returned
             </p>
             <p className="mt-1 text-2xl font-semibold tabular-nums">
               {query.isSuccess ? cases.length : "—"}
             </p>
-            <p className="mt-1 text-xs text-slate-400">From the cases API</p>
+            <p className="mt-1 text-xs text-white/65">From the cases API</p>
           </div>
 
-          <div className="border-b border-white/10 p-4 sm:border-b-0 sm:border-r">
-            <p className="text-xs uppercase tracking-wider text-slate-400">
+          <div className="border-b border-white/15 p-4 sm:border-b-0 sm:border-r">
+            <p className="text-xs uppercase tracking-wider text-white/65">
               Identity exposure
             </p>
             <p className="mt-1 font-medium">Role-restricted</p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-white/65">
               API-enforced visibility
             </p>
           </div>
 
           <div className="p-4">
-            <p className="text-xs uppercase tracking-wider text-slate-400">
+            <p className="text-xs uppercase tracking-wider text-white/65">
               Average returned score
             </p>
             <p className="mt-1 text-2xl font-semibold tabular-nums">
               {averageScore === null ? "—" : formatScore(averageScore)}
             </p>
-            <p className="mt-1 text-xs text-slate-400">Across returned cases</p>
+            <p className="mt-1 text-xs text-white/65">Across returned cases</p>
           </div>
         </div>
-      </section>
+      </DashboardHeader>
 
       {/* Loading */}
       {query.isPending && (

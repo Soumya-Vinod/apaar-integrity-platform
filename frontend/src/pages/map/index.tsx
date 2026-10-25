@@ -7,8 +7,9 @@ import { feature } from 'topojson-client'
 import type { Topology } from 'topojson-specification'
 import { API_URL, ApiError } from '../../lib/api'
 import type { components } from '../../lib/api-types'
-import { getIdentity } from '../../lib/roles'
-import RoleBadge from '../../components/RoleBadge'
+import { viewerHeader } from '../../lib/dashboards'
+import { getIdentity, useIdentity } from '../../lib/roles'
+import DashboardHeader, { ReadOnlyBanner } from '../../components/DashboardHeader'
 import IndiaMap from './IndiaMap'
 import './map.css'
 import StatePanel from './StatePanel'
@@ -61,6 +62,7 @@ function Skeleton() {
 }
 
 export default function MapPage() {
+  const { role } = useIdentity()
   const [metricKey, setMetricKey] = useState<MetricKey>(DEFAULT_METRIC)
   const [selected, setSelected] = useState<string | null>(null)
   const states = useQuery({ queryKey: ['state-report'], queryFn: fetchStates, retry: false })
@@ -99,24 +101,17 @@ export default function MapPage() {
 
   return (
     <div className="space-y-8 pb-8">
-      <div className="flex flex-wrap items-end justify-between gap-6">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">State map</p>
-            <RoleBadge />
-          </div>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-            Admissions across India
-          </h1>
-          <p className="mt-2 text-slate-600">
-            Academic year {report?.academic_year ?? '2026-27'}
-            {states.data?.mock && (
-              <span className="ml-3 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
-                Simulated data
-              </span>
-            )}
-          </p>
-        </div>
+      {role === 'auditor' && (
+        <ReadOnlyBanner>
+          You can view, verify and download. Decisions and edits are made by AICTE admins.
+        </ReadOnlyBanner>
+      )}
+      <DashboardHeader
+        header={viewerHeader(role, 'Admissions across India', `Academic year ${report?.academic_year ?? '2026-27'}`)}
+        eyebrow="State map"
+        simulated={Boolean(states.data?.mock)}
+      />
+      <div className="flex flex-wrap items-end justify-end gap-6">
         <div
           role="radiogroup"
           aria-label="Colour the map by"
