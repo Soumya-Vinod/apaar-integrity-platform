@@ -93,7 +93,8 @@ export const ROUTES: readonly RouteAccess[] = [
     audience: 'AICTE administrators',
   },
   { path: '/student', label: 'Student', roles: ['student'], audience: 'students' },
-  { path: '/verifier', label: 'Verifier', roles: ['verifier', 'aicte_admin'], audience: 'verifiers' },
+  // Public: checked offline against the public key, so it works for every role and without login.
+  { path: '/verifier', label: 'Verifier', roles: ROLES, audience: 'everyone' },
 ]
 
 export const ROLE_HOME: Record<Role, string> = {

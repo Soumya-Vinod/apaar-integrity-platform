@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEv
 import zxingWasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url'
 import { ApiError, api } from '../../lib/api'
 import type { components } from '../../lib/api-types'
+import { DASHBOARD_HEADERS } from '../../lib/dashboards'
+import DashboardHeader from '../../components/DashboardHeader'
 import { configureZxingWasm, decodeImageFile } from './qr-decoder'
 import { useQrCamera } from './use-qr-camera'
 import {
@@ -193,116 +195,120 @@ export default function VerifierPage() {
     setQrText('')
   }
 
+  // Same header for every role, and nothing here needs a login.
+  const header = <DashboardHeader header={DASHBOARD_HEADERS.verifier} eyebrow="Verifier" />
+
   if (result) {
     return (
-      <section className="mx-auto max-w-lg space-y-5">
-        <h1 className="text-3xl font-bold text-slate-900">Credential result</h1>
-        <ResultCard result={result} revoked={revoked} onReset={reset} />
-      </section>
+      <div className="space-y-6">
+        {header}
+        <section className="mx-auto max-w-lg space-y-5">
+          <h2 className="text-3xl font-bold text-slate-900">Credential result</h2>
+          <ResultCard result={result} revoked={revoked} onReset={reset} />
+        </section>
+      </div>
     )
   }
 
   const cameraLive = camera.status === 'scanning' || camera.status === 'starting'
 
   return (
-    <section className="mx-auto max-w-lg space-y-6">
-      <div>
-        <p className="text-sm font-bold uppercase tracking-wide text-blue-700">Verifier</p>
-        <h1 className="mt-1 text-3xl font-bold text-slate-900">Check a credential</h1>
-        <p className="mt-2 text-base text-slate-600">Scan the student&apos;s QR code or paste its text.</p>
-      </div>
-      <div className="space-y-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3">
-        <div className={`relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-900 ${cameraLive ? '' : 'hidden'}`}>
-          <video
-            ref={videoRef}
-            muted
-            playsInline
-            autoPlay
-            aria-label="Camera preview"
-            className="h-full w-full object-cover"
-          />
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="aspect-square h-[85%] rounded-2xl border-4 border-white/80" />
+    <div className="space-y-6">
+      {header}
+      <section className="mx-auto max-w-lg space-y-6">
+        <div className="space-y-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3">
+          <div className={`relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-900 ${cameraLive ? '' : 'hidden'}`}>
+            <video
+              ref={videoRef}
+              muted
+              playsInline
+              autoPlay
+              aria-label="Camera preview"
+              className="h-full w-full object-cover"
+            />
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="aspect-square h-[85%] rounded-2xl border-4 border-white/80" />
+            </div>
+            <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-slate-900/70 px-3 py-2 text-center text-sm font-semibold text-white">
+              {camera.status === 'starting' ? 'Starting camera…' : 'Hold the QR flat, fill most of the frame'}
+            </p>
           </div>
-          <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-slate-900/70 px-3 py-2 text-center text-sm font-semibold text-white">
-            {camera.status === 'starting' ? 'Starting camera…' : 'Hold the QR flat, fill most of the frame'}
-          </p>
+          {checking && <p className="px-1 text-base font-semibold text-slate-700">QR read. Checking…</p>}
+          {camera.error && <p role="status" className="px-1 text-base text-slate-700">{camera.error}</p>}
+          <div className="flex flex-wrap gap-2">
+            {cameraLive ? (
+              <>
+                {camera.torchSupported && (
+                  <button
+                    type="button"
+                    onClick={() => void camera.toggleTorch()}
+                    aria-pressed={camera.torchOn}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                  >
+                    {camera.torchOn ? 'Torch off' : 'Torch on'}
+                  </button>
+                )}
+                {camera.canSwitchCamera && (
+                  <button
+                    type="button"
+                    onClick={camera.switchCamera}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                  >
+                    Switch camera
+                  </button>
+                )}
+              </>
+            ) : (
+              !checking && (
+                <button
+                  type="button"
+                  onClick={() => void startCamera()}
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                >
+                  {camera.status === 'error' ? 'Try camera again' : 'Start camera'}
+                </button>
+              )
+            )}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={readingImage || checking}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {readingImage ? 'Reading image…' : 'Scan from image'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg"
+              onChange={(event) => void handleImage(event)}
+              className="hidden"
+            />
+          </div>
+          {imageMessage && <p role="alert" className="px-1 text-base text-red-700">{imageMessage}</p>}
         </div>
-        {checking && <p className="px-1 text-base font-semibold text-slate-700">QR read. Checking…</p>}
-        {camera.error && <p role="status" className="px-1 text-base text-slate-700">{camera.error}</p>}
-        <div className="flex flex-wrap gap-2">
-          {cameraLive ? (
-            <>
-              {camera.torchSupported && (
-                <button
-                  type="button"
-                  onClick={() => void camera.toggleTorch()}
-                  aria-pressed={camera.torchOn}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                >
-                  {camera.torchOn ? 'Torch off' : 'Torch on'}
-                </button>
-              )}
-              {camera.canSwitchCamera && (
-                <button
-                  type="button"
-                  onClick={camera.switchCamera}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                >
-                  Switch camera
-                </button>
-              )}
-            </>
-          ) : (
-            !checking && (
-              <button
-                type="button"
-                onClick={() => void startCamera()}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-              >
-                {camera.status === 'error' ? 'Try camera again' : 'Start camera'}
-              </button>
-            )
-          )}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={readingImage || checking}
-            className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {readingImage ? 'Reading image…' : 'Scan from image'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg"
-            onChange={(event) => void handleImage(event)}
-            className="hidden"
+        <form onSubmit={handleVerify} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+          <label htmlFor="qr-text" className="text-base font-bold text-slate-900">
+            Paste QR text
+          </label>
+          <textarea
+            id="qr-text"
+            value={qrText}
+            onChange={(event) => setQrText(event.target.value)}
+            rows={5}
+            placeholder="Paste the credential QR text here"
+            className="w-full resize-y rounded-xl border border-slate-300 p-3 font-mono text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
           />
-        </div>
-        {imageMessage && <p role="alert" className="px-1 text-base text-red-700">{imageMessage}</p>}
-      </div>
-      <form onSubmit={handleVerify} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
-        <label htmlFor="qr-text" className="text-base font-bold text-slate-900">
-          Paste QR text
-        </label>
-        <textarea
-          id="qr-text"
-          value={qrText}
-          onChange={(event) => setQrText(event.target.value)}
-          rows={5}
-          placeholder="Paste the credential QR text here"
-          className="w-full resize-y rounded-xl border border-slate-300 p-3 font-mono text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-        />
-        {error && <p role="alert" className="text-base text-red-700">{error}</p>}
-        <button
-          type="submit"
-          disabled={checking || !qrText.trim()}
-          className="w-full rounded-xl bg-blue-700 px-4 py-3 text-base font-bold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-        >
-          {checking ? 'Checking…' : 'Verify'}
-        </button>
-      </form>
-    </section>
+          {error && <p role="alert" className="text-base text-red-700">{error}</p>}
+          <button
+            type="submit"
+            disabled={checking || !qrText.trim()}
+            className="w-full rounded-xl bg-blue-700 px-4 py-3 text-base font-bold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            {checking ? 'Checking…' : 'Verify'}
+          </button>
+        </form>
+      </section>
+    </div>
   )
 }

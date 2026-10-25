@@ -4,6 +4,8 @@ import { QRCodeSVG } from 'qrcode.react'
 import { API_URL, ApiError, api } from '../../lib/api'
 import type { components } from '../../lib/api-types'
 import { getIdentity } from '../../lib/roles'
+import { DASHBOARD_HEADERS } from '../../lib/dashboards'
+import DashboardHeader from '../../components/DashboardHeader'
 
 type Credential = components['schemas']['Credential']
 type CredentialRequest = components['schemas']['CredentialRequest']
@@ -959,10 +961,7 @@ export default function StudentPage() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Student portal</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-900">Your records, your control</h1>
-      </div>
+      <DashboardHeader header={DASHBOARD_HEADERS.student} eyebrow="Student portal" />
       <div className="overflow-x-auto border-b border-slate-200">
         <div className="flex min-w-max gap-6" role="tablist" aria-label="Student portal sections">
           {tabs.map((tab) => (
