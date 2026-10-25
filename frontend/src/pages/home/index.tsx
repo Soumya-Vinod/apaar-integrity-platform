@@ -4,7 +4,9 @@ import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
 import type { components } from '../../lib/api-types'
+import { ROLE_ACCENT } from '../../lib/dashboards'
 import { setIdentity, type Role } from '../../lib/roles'
+import { accentTints } from '../../components/accents'
 import BlindMatchStrip from './BlindMatchStrip'
 import HashChain from './HashChain'
 import SeatLedgerCard from './SeatLedgerCard'
@@ -27,15 +29,13 @@ type PublicStats = components['schemas']['PublicStats']
 const panel = 'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm'
 const sectionTitle = 'text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl'
 
+// Each card takes its role's accent from lib/dashboards.ts, the same colour as that role's header.
 const ROLE_CARDS: {
   role: Role
   to: string
   title: string
   line: string
   icon: ReactNode
-  badge: string
-  text: string
-  border: string
 }[] = [
   {
     role: 'institution_admin',
@@ -43,9 +43,6 @@ const ROLE_CARDS: {
     title: 'Institution',
     line: 'Upload a batch, fix flagged rows and watch the Seat Ledger update live.',
     icon: <BuildingIcon />,
-    badge: 'bg-blue-50 text-blue-600',
-    text: 'text-blue-600',
-    border: 'hover:border-blue-400',
   },
   {
     role: 'aicte_admin',
@@ -53,9 +50,6 @@ const ROLE_CARDS: {
     title: 'AICTE',
     line: 'Integrity scores, open review cases, Blind Match results and reports.',
     icon: <ChartIcon />,
-    badge: 'bg-indigo-50 text-indigo-600',
-    text: 'text-indigo-600',
-    border: 'hover:border-indigo-400',
   },
   {
     role: 'student',
@@ -63,9 +57,6 @@ const ROLE_CARDS: {
     title: 'Student',
     line: 'Confirm or dispute your admission and collect a signed credential.',
     icon: <CapIcon />,
-    badge: 'bg-emerald-50 text-emerald-600',
-    text: 'text-emerald-600',
-    border: 'hover:border-emerald-400',
   },
   {
     role: 'verifier',
@@ -73,9 +64,6 @@ const ROLE_CARDS: {
     title: 'Verifier',
     line: 'Scan a credential QR and check its signature and revocation status.',
     icon: <QrCheckIcon />,
-    badge: 'bg-amber-50 text-amber-600',
-    text: 'text-amber-600',
-    border: 'hover:border-amber-400',
   },
 ]
 
@@ -307,27 +295,31 @@ export default function HomePage() {
       <section className="space-y-8">
         <h2 className={sectionTitle}>Try it as</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {ROLE_CARDS.map((card) => (
-            <button
-              key={card.role}
-              type="button"
-              onClick={() => openAs(card.role, card.to)}
-              className={`${panel} flex flex-col text-left transition duration-200 hover:-translate-y-1 hover:shadow-lg focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${card.border}`}
-            >
-              <span
-                className={`flex h-12 w-12 items-center justify-center rounded-xl ${card.badge}`}
+          {ROLE_CARDS.map((card) => {
+            const tint = accentTints[ROLE_ACCENT[card.role]]
+            return (
+              <button
+                key={card.role}
+                type="button"
+                data-accent={ROLE_ACCENT[card.role]}
+                onClick={() => openAs(card.role, card.to)}
+                className={`${panel} flex flex-col text-left transition duration-200 hover:-translate-y-1 hover:shadow-lg focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${tint.border}`}
               >
-                {card.icon}
-              </span>
-              <span className="mt-4 text-lg font-semibold text-slate-950">{card.title}</span>
-              <span className="mt-1 flex-1 text-sm text-slate-600">{card.line}</span>
-              <span
-                className={`mt-4 inline-flex items-center gap-1 text-sm font-medium ${card.text}`}
-              >
-                Open as {card.role.replace('_', ' ')} <ArrowIcon />
-              </span>
-            </button>
-          ))}
+                <span
+                  className={`flex h-12 w-12 items-center justify-center rounded-xl ${tint.badge}`}
+                >
+                  {card.icon}
+                </span>
+                <span className="mt-4 text-lg font-semibold text-slate-950">{card.title}</span>
+                <span className="mt-1 flex-1 text-sm text-slate-600">{card.line}</span>
+                <span
+                  className={`mt-4 inline-flex items-center gap-1 text-sm font-medium ${tint.text}`}
+                >
+                  Open as {card.role.replace('_', ' ')} <ArrowIcon />
+                </span>
+              </button>
+            )
+          })}
         </div>
       </section>
 
