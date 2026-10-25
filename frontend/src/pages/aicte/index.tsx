@@ -1,12 +1,18 @@
 // Owner: Dev D
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
 import { api, apiWithMetadata } from "../../lib/api";
 import { canPerform, useActionHint, useIdentity } from "../../lib/roles";
 import ErrorAlert from "../../components/ErrorAlert";
-import RoleBadge from "../../components/RoleBadge";
+import DashboardHeader, { headerButton } from "../../components/DashboardHeader";
+import {
+  aicteHeader,
+  aicteSections,
+  type AicteSection,
+} from "../../lib/dashboards";
 import {
   actorLabel,
   evidenceSentences,
@@ -16,11 +22,11 @@ import {
 } from "../../components/format";
 import { useInstitutions } from "../../components/useInstitutions";
 import Reports from "./Reports";
+import { AuditChainCard, DecisionLog } from "./AuditPanels";
 
 type ReviewCase = components["schemas"]["ReviewCase"];
 type IntegrityRanking = components["schemas"]["IntegrityRanking"];
 type IntegrityDetail = components["schemas"]["IntegrityDetail"];
-type AuditVerifyResult = components["schemas"]["AuditVerifyResult"];
 type ResolveRequest = components["schemas"]["ResolveRequest"];
 type EditRequest = components["schemas"]["EditRequest"];
 type EditDecision = components["schemas"]["EditDecision"];
@@ -47,26 +53,6 @@ function ErrorMessage({ message }: { message: string }) {
       className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
     >
       {message}
-    </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string | number;
-  detail: string;
-}) {
-  return (
-    <div className={panel}>
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-        {value}
-      </p>
-      <p className="mt-1 text-xs text-slate-500">{detail}</p>
     </div>
   );
 }
@@ -156,11 +142,12 @@ export default function AictePage() {
   const { role } = useIdentity();
   const decideEditHint = useActionHint("decide_edit_request");
   const resolveCaseHint = useActionHint("resolve_review_case");
-  const auditHint = useActionHint("verify_audit_chain");
   // GET /edit-requests allows both; only aicte_admin may decide.
   const canReadEditRequests = role === "aicte_admin" || role === "auditor";
   const queryClient = useQueryClient();
   const { lookup } = useInstitutions();
+  const sections = aicteSections(role);
+  const header = aicteHeader(role);
 
   const [statusFilter, setStatusFilter] = useState("open");
   const [kindFilter, setKindFilter] = useState("all");
@@ -169,9 +156,6 @@ export default function AictePage() {
     useState<ResolveRequest["status"]>("confirmed");
   const [reviewerNote, setReviewerNote] = useState("");
   const [selectedInstitution, setSelectedInstitution] = useState<string | null>(
-    null,
-  );
-  const [auditResult, setAuditResult] = useState<AuditVerifyResult | null>(
     null,
   );
   const [editNotes, setEditNotes] = useState<Record<string, string>>({});
@@ -261,6 +245,13 @@ export default function AictePage() {
     refetchIntervalInBackground: false,
   });
 
+  const pendingEditsQuery = useQuery({
+    queryKey: ["aicte-edit-requests", role, "pending-count"],
+    queryFn: () => api<EditRequest[]>("/edit-requests?status=pending"),
+    enabled: sections.includes("decisions_waiting"),
+    refetchInterval: 15000,
+  });
+
   const openCasesQuery = useQuery({
     queryKey: ["aicte-open-review-cases", role],
     queryFn: () => api<ReviewCase[]>("/review-cases?status=open"),
@@ -302,11 +293,6 @@ export default function AictePage() {
         }),
       ]);
     },
-  });
-
-  const auditMutation = useMutation({
-    mutationFn: () => api<AuditVerifyResult>("/audit/verify"),
-    onSuccess: (result) => setAuditResult(result),
   });
 
   const cases = casesQuery.data?.data ?? [];
@@ -382,87 +368,99 @@ export default function AictePage() {
     });
   }
 
-  return (
-    <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
-      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
-              APAAR Integrity Platform
-            </p>
 
-            {isMock && (
-              <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
-                SIMULATED
-              </span>
-            )}
+  // Cards at the top of the admin view; each scrolls to its list with the matching filter.
+  const waiting = [
+    {
+      label: "Open review cases",
+      count: openCasesQuery.isLoading ? null : openCount,
+      detail: "Exception queue",
+      target: "exception-queue",
+      select: () => setStatusFilter("open"),
+    },
+    {
+      label: "Pending edit requests",
+      count: pendingEditsQuery.isLoading
+        ? null
+        : (pendingEditsQuery.data?.length ?? 0),
+      detail: "Institution edit requests",
+      target: "edit-requests",
+      select: () => setEditStatus("pending"),
+    },
+  ];
 
-            <RoleBadge />
-          </div>
-
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-            AICTE Integrity Dashboard
-          </h1>
-
-          <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Monitor integrity exceptions, review institution risk signals, and
-            record auditable decisions.
-          </p>
-
-          <p className="mt-2 text-xs text-slate-500">
-            Review queue refreshes every 15 seconds. Rankings refresh every 30
-            seconds.
-          </p>
-        </div>
-        <button
-          type="button"
-          className={secondaryButton}
-          onClick={() => void refreshDashboard()}
-          disabled={casesQuery.isFetching || rankingsQuery.isFetching}
+  // One renderer per section; aicteSections(role) decides which appear and in what order.
+  const render: Record<AicteSection, ReactNode> = {
+    read_only_banner: (
+      <div
+        role="note"
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-300 bg-slate-100 px-5 py-3 text-sm text-slate-800"
+      >
+        <span className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
+          Read-only
+        </span>
+        <span>
+          You can view, verify and download. Decisions and edits are made by
+          AICTE admins; every one is in the decision log below.
+        </span>
+      </div>
+    ),
+    decisions_waiting: (
+      <section aria-labelledby="decisions-waiting-title">
+        <h2
+          id="decisions-waiting-title"
+          className="text-sm font-semibold uppercase tracking-wide text-slate-500"
         >
-          {casesQuery.isFetching || rankingsQuery.isFetching
-            ? "Refreshing…"
-            : "Refresh dashboard"}
-        </button>
-      </header>
-
-      {(casesQuery.isError ||
-        openCasesQuery.isError ||
-        rankingsQuery.isError) && (
-        <ErrorMessage message="Some dashboard data could not be loaded. Check your API connection and try refreshing." />
-      )}
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          label="Open review cases"
-          value={openCasesQuery.isLoading ? "—" : openCount}
-          detail="Cases awaiting a decision"
-        />
-        <Metric
-          label="Institutions ranked"
-          value={rankingsQuery.isLoading ? "—" : rankings.length}
-          detail="Integrity ranking results"
-        />
-        <Metric
-          label="High anomaly scores"
-          value={rankingsQuery.isLoading ? "—" : highAnomalyCount}
-          detail="Anomaly score ≥ 0.70"
-        />
-        <Metric
-          label="Average integrity score"
-          value={averageScore === null ? "—" : `${averageScore}/100`}
-          detail="Across ranked institutions"
-        />
+          Decisions waiting
+        </h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          {waiting.map((card) => (
+            <button
+              key={card.target}
+              type="button"
+              onClick={() => {
+                card.select();
+                document
+                  .getElementById(card.target)
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className="group flex items-center justify-between gap-4 rounded-xl border border-blue-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-400 hover:shadow"
+            >
+              <span>
+                <span className="block text-sm text-slate-500">{card.label}</span>
+                <span
+                  className={`mt-1 block text-4xl font-semibold tracking-tight ${
+                    card.count ? "text-blue-800" : "text-slate-400"
+                  }`}
+                >
+                  {card.count ?? "—"}
+                </span>
+                <span className="mt-1 block text-xs text-slate-500">
+                  {card.count === 0 ? "Nothing waiting" : `Go to ${card.detail}`}
+                </span>
+              </span>
+              <span
+                aria-hidden="true"
+                className="text-2xl text-blue-400 transition group-hover:translate-x-1"
+              >
+                →
+              </span>
+            </button>
+          ))}
+        </div>
       </section>
-
-      <section className={panel}>
+    ),
+    exception_queue: (
+      <section id="exception-queue" className={`${panel} scroll-mt-20`}>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-lg font-semibold text-slate-950">
               Exception queue
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Review cases and record a decision with a mandatory note.
+              {canPerform(role, "resolve_review_case")
+                ? "Review cases and record a decision with a mandatory note."
+                : "Read-only. Open a case to read its evidence; decisions are made by AICTE admins."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -586,15 +584,227 @@ export default function AictePage() {
           </div>
         )}
       </section>
-
-      <section className={panel}>
-        <div>
-          <h2 className="text-lg font-semibold text-slate-950">
-            Integrity Score rankings
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Lowest integrity scores appear first for review priority.
+    ),
+    edit_requests: (
+  <section id="edit-requests" className={`${panel} scroll-mt-20`}>
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              Institution edit requests
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Approve or reject post-lock changes. A reviewer note is
+              required.
+            </p>
+            {decideEditHint && (
+              <p className="mt-1 text-xs font-medium text-amber-800">
+                {decideEditHint}: decisions are disabled.
+              </p>
+            )}
+          </div>
+          <select
+            aria-label="Filter edit requests by status"
+            className={`${field} sm:w-auto`}
+            value={editStatus}
+            onChange={(event) => setEditStatus(event.target.value)}
+          >
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="all">All statuses</option>
+          </select>
+        </div>
+        {editRequestsQuery.isLoading ? (
+          <p className="py-5 text-sm text-slate-500">
+            Loading edit requests…
           </p>
+        ) : editRequestsQuery.isError ? (
+          <div className="mt-4">
+            <ErrorAlert
+              action="Loading edit requests"
+              error={editRequestsQuery.error}
+            />
+          </div>
+        ) : (editRequestsQuery.data ?? []).length === 0 ? (
+          <p className="py-5 text-sm text-slate-500">
+            No {editStatus === "all" ? "" : `${editStatus} `}edit requests.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {(editRequestsQuery.data ?? []).map((request) => (
+              <article
+                key={request.id}
+                className="rounded-lg border border-slate-200 p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-semibold capitalize text-slate-900">
+                      {request.field.replaceAll("_", " ")}
+                      {request.admission?.student_name &&
+                        ` · ${request.admission.student_name}`}
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Request {request.id.slice(0, 8)}
+                      {request.institution_id &&
+                        ` · ${institutionLabel(request.institution_id, lookup)}`}
+                      {request.admission?.apaar_id_masked &&
+                        ` · APAAR ${request.admission.apaar_id_masked}`}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-1 text-xs capitalize ${
+                      request.status === "pending"
+                        ? "bg-amber-100 text-amber-800"
+                        : request.status === "approved"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {request.status}
+                  </span>
+                </div>
+                <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-slate-500">Requested by</dt>
+                    <dd>
+                      {actorLabel(request.requested_by)}
+                      <span className="text-slate-500">
+                        {" "}
+                        · {new Date(request.created_at).toLocaleString()}
+                      </span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Decided by</dt>
+                    <dd>
+                      {request.decided_by
+                        ? actorLabel(request.decided_by)
+                        : "Awaiting decision"}
+                      {request.decided_at && (
+                        <span className="text-slate-500">
+                          {" "}
+                          · {new Date(request.decided_at).toLocaleString()}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+                <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-slate-500">Old value</dt>
+                    <dd className="break-words whitespace-pre-wrap">
+                      {displayValue(request.old_value)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Requested value</dt>
+                    <dd className="break-words whitespace-pre-wrap font-medium">
+                      {displayValue(request.new_value)}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mt-2 text-sm">
+                  <span className="text-slate-500">Reason: </span>
+                  {request.reason || "No reason supplied"}
+                </p>
+                {request.status !== "pending" ? (
+                  <p className="mt-2 text-sm">
+                    <span className="text-slate-500">Decision note: </span>
+                    {request.decision_note || "—"}
+                  </p>
+                ) : (
+                  <>
+                    <label className="mt-3 block text-sm font-medium text-slate-700">
+                      Reviewer note (required)
+                      <textarea
+                        className={`${field} mt-1`}
+                        rows={2}
+                        disabled={Boolean(decideEditHint)}
+                        value={editNotes[request.id] ?? ""}
+                        onChange={(event) =>
+                          setEditNotes((current) => ({
+                            ...current,
+                            [request.id]: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    {editDecisionMutation.isError &&
+                      editDecisionMutation.variables?.id === request.id && (
+                        <div className="mt-2">
+                          <ErrorAlert
+                            action="Saving the decision"
+                            error={editDecisionMutation.error}
+                          />
+                        </div>
+                      )}
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        className={secondaryButton}
+                        disabled={
+                          Boolean(decideEditHint) ||
+                          !editNotes[request.id]?.trim() ||
+                          editDecisionMutation.isPending
+                        }
+                        title={decideEditHint}
+                        onClick={() =>
+                          editDecisionMutation.mutate({
+                            id: request.id,
+                            decision: "rejected",
+                            note: editNotes[request.id].trim(),
+                          })
+                        }
+                      >
+                        Reject
+                      </button>
+                      <button
+                        type="button"
+                        className={primaryButton}
+                        disabled={
+                          Boolean(decideEditHint) ||
+                          !editNotes[request.id]?.trim() ||
+                          editDecisionMutation.isPending
+                        }
+                        title={decideEditHint}
+                        onClick={() =>
+                          editDecisionMutation.mutate({
+                            id: request.id,
+                            decision: "approved",
+                            note: editNotes[request.id].trim(),
+                          })
+                        }
+                      >
+                        Approve
+                      </button>
+                    </div>
+                  </>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    ),
+    rankings: (
+      <section id="rankings" className={panel}>
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              Integrity Score rankings
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Lowest integrity scores appear first for review priority.
+              {!rankingsQuery.isLoading &&
+                ` ${rankings.length} ranked · ${highAnomalyCount} with anomaly ≥ 0.70 · average ${averageScore === null ? "—" : `${averageScore}/100`}.`}
+            </p>
+          </div>
+          <Link
+            to="/map"
+            className="shrink-0 text-sm font-medium text-blue-700 underline"
+          >
+            View on state map →
+          </Link>
         </div>
 
         {rankingsQuery.isLoading ? (
@@ -673,267 +883,50 @@ export default function AictePage() {
           </div>
         )}
       </section>
+    ),
+    reports: <Reports rankings={rankings} />,
+    audit_chain: <AuditChainCard auto={false} compact />,
+    audit_status: <AuditChainCard auto />,
+    decision_log: <DecisionLog lookup={lookup} />,
+  };
 
-      <section className={panel}>
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-950">
-              Audit-chain verification
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Recompute the audit hash chain to check its integrity.
-            </p>
-          </div>
+  return (
+    <main
+      className="mx-auto max-w-7xl space-y-6 p-4 md:p-6"
+      data-role-dashboard={role}
+    >
+      {sections[0] === "read_only_banner" && render.read_only_banner}
+      <DashboardHeader
+        header={header}
+        eyebrow="AICTE portal"
+        simulated={isMock}
+        actions={
           <button
             type="button"
-            className={primaryButton}
-            disabled={auditMutation.isPending || Boolean(auditHint)}
-            title={auditHint}
-            onClick={() => auditMutation.mutate()}
+            className={headerButton}
+            onClick={() => void refreshDashboard()}
+            disabled={casesQuery.isFetching || rankingsQuery.isFetching}
           >
-            {auditMutation.isPending ? "Verifying…" : "Verify audit chain"}
+            {casesQuery.isFetching || rankingsQuery.isFetching
+              ? "Refreshing…"
+              : "Refresh dashboard"}
           </button>
-        </div>
+        }
+      />
 
-        {auditMutation.isError && (
-          <div className="mt-4">
-            <ErrorAlert
-              action="Audit verification"
-              error={auditMutation.error}
-            />
-          </div>
-        )}
-
-        {auditResult && (
-          <div
-            role={auditResult.ok ? "status" : "alert"}
-            className={`mt-4 rounded-lg border p-4 ${
-              auditResult.ok
-                ? "border-green-200 bg-green-50 text-green-900"
-                : "border-red-300 bg-red-50 text-red-900"
-            }`}
-          >
-            <p className="font-semibold">
-              {auditResult.ok
-                ? "Audit chain verified"
-                : "WARNING: Audit-chain tampering detected"}
-            </p>
-            <p className="mt-1 text-sm">
-              Entries checked: {auditResult.checked}
-            </p>
-            {!auditResult.ok && (
-              <p className="mt-1 text-sm">
-                First broken index:{" "}
-                {auditResult.first_broken_index ?? "Not provided by the API"}
-              </p>
-            )}
-          </div>
-        )}
-      </section>
-
-      {canReadEditRequests && (
-        <section className={panel}>
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-950">
-                Institution edit requests
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Approve or reject post-lock changes. A reviewer note is
-                required.
-              </p>
-              {decideEditHint && (
-                <p className="mt-1 text-xs font-medium text-amber-800">
-                  {decideEditHint}: decisions are disabled.
-                </p>
-              )}
-            </div>
-            <select
-              aria-label="Filter edit requests by status"
-              className={`${field} sm:w-auto`}
-              value={editStatus}
-              onChange={(event) => setEditStatus(event.target.value)}
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="all">All statuses</option>
-            </select>
-          </div>
-          {editRequestsQuery.isLoading ? (
-            <p className="py-5 text-sm text-slate-500">
-              Loading edit requests…
-            </p>
-          ) : editRequestsQuery.isError ? (
-            <div className="mt-4">
-              <ErrorAlert
-                action="Loading edit requests"
-                error={editRequestsQuery.error}
-              />
-            </div>
-          ) : (editRequestsQuery.data ?? []).length === 0 ? (
-            <p className="py-5 text-sm text-slate-500">
-              No {editStatus === "all" ? "" : `${editStatus} `}edit requests.
-            </p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {(editRequestsQuery.data ?? []).map((request) => (
-                <article
-                  key={request.id}
-                  className="rounded-lg border border-slate-200 p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <h3 className="font-semibold capitalize text-slate-900">
-                        {request.field.replaceAll("_", " ")}
-                        {request.admission?.student_name &&
-                          ` · ${request.admission.student_name}`}
-                      </h3>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Request {request.id.slice(0, 8)}
-                        {request.institution_id &&
-                          ` · ${institutionLabel(request.institution_id, lookup)}`}
-                        {request.admission?.apaar_id_masked &&
-                          ` · APAAR ${request.admission.apaar_id_masked}`}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs capitalize ${
-                        request.status === "pending"
-                          ? "bg-amber-100 text-amber-800"
-                          : request.status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {request.status}
-                    </span>
-                  </div>
-                  <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                    <div>
-                      <dt className="text-slate-500">Requested by</dt>
-                      <dd>
-                        {actorLabel(request.requested_by)}
-                        <span className="text-slate-500">
-                          {" "}
-                          · {new Date(request.created_at).toLocaleString()}
-                        </span>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500">Decided by</dt>
-                      <dd>
-                        {request.decided_by
-                          ? actorLabel(request.decided_by)
-                          : "Awaiting decision"}
-                        {request.decided_at && (
-                          <span className="text-slate-500">
-                            {" "}
-                            · {new Date(request.decided_at).toLocaleString()}
-                          </span>
-                        )}
-                      </dd>
-                    </div>
-                  </dl>
-                  <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                    <div>
-                      <dt className="text-slate-500">Old value</dt>
-                      <dd className="break-words whitespace-pre-wrap">
-                        {displayValue(request.old_value)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500">Requested value</dt>
-                      <dd className="break-words whitespace-pre-wrap font-medium">
-                        {displayValue(request.new_value)}
-                      </dd>
-                    </div>
-                  </dl>
-                  <p className="mt-2 text-sm">
-                    <span className="text-slate-500">Reason: </span>
-                    {request.reason || "No reason supplied"}
-                  </p>
-                  {request.status !== "pending" ? (
-                    <p className="mt-2 text-sm">
-                      <span className="text-slate-500">Decision note: </span>
-                      {request.decision_note || "—"}
-                    </p>
-                  ) : (
-                    <>
-                      <label className="mt-3 block text-sm font-medium text-slate-700">
-                        Reviewer note (required)
-                        <textarea
-                          className={`${field} mt-1`}
-                          rows={2}
-                          disabled={Boolean(decideEditHint)}
-                          value={editNotes[request.id] ?? ""}
-                          onChange={(event) =>
-                            setEditNotes((current) => ({
-                              ...current,
-                              [request.id]: event.target.value,
-                            }))
-                          }
-                        />
-                      </label>
-                      {editDecisionMutation.isError &&
-                        editDecisionMutation.variables?.id === request.id && (
-                          <div className="mt-2">
-                            <ErrorAlert
-                              action="Saving the decision"
-                              error={editDecisionMutation.error}
-                            />
-                          </div>
-                        )}
-                      <div className="mt-3 flex justify-end gap-2">
-                        <button
-                          type="button"
-                          className={secondaryButton}
-                          disabled={
-                            Boolean(decideEditHint) ||
-                            !editNotes[request.id]?.trim() ||
-                            editDecisionMutation.isPending
-                          }
-                          title={decideEditHint}
-                          onClick={() =>
-                            editDecisionMutation.mutate({
-                              id: request.id,
-                              decision: "rejected",
-                              note: editNotes[request.id].trim(),
-                            })
-                          }
-                        >
-                          Reject
-                        </button>
-                        <button
-                          type="button"
-                          className={primaryButton}
-                          disabled={
-                            Boolean(decideEditHint) ||
-                            !editNotes[request.id]?.trim() ||
-                            editDecisionMutation.isPending
-                          }
-                          title={decideEditHint}
-                          onClick={() =>
-                            editDecisionMutation.mutate({
-                              id: request.id,
-                              decision: "approved",
-                              note: editNotes[request.id].trim(),
-                            })
-                          }
-                        >
-                          Approve
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+      {(casesQuery.isError ||
+        openCasesQuery.isError ||
+        rankingsQuery.isError) && (
+        <ErrorMessage message="Some dashboard data could not be loaded. Check your API connection and try refreshing." />
       )}
 
-      <Reports rankings={rankings} />
+      {sections
+        .filter((id) => id !== "read_only_banner")
+        .map((id) => (
+          <div key={id} data-section={id}>
+            {render[id]}
+          </div>
+        ))}
 
       {selectedInstitution && (
         <div className="fixed inset-0 z-50 flex justify-end">
