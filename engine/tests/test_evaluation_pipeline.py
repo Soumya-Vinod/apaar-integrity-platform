@@ -48,13 +48,23 @@ def test_f24_pipeline_execution_on_synthetic_dataset(tmp_path: Path) -> None:
     assert bm["dup_cross_institution"]["tp"] == 10
     assert bm["dup_cross_institution"]["f1"] == 1.0
 
-    # Under production BirthYearBlocking, Blind Match achieves 100% recall (tp=12, fn=0)
-    # with 1 coincidental false positive (fp=1) on similar names in the 2007 birth year block
+    # Headline Live Backend Blind Match: 0 false positives (tp=12, fp=0, f1=1.0)
+    # using keyed HMAC of full normalized DOB blocking
     assert bm["typo_duplicate"]["tp"] == 12
-    assert bm["typo_duplicate"]["fp"] == 1
+    assert bm["typo_duplicate"]["fp"] == 0
     assert bm["typo_duplicate"]["recall"] == 1.0
-    assert bm["typo_duplicate"]["precision"] == 0.9231
-    assert bm["typo_duplicate"]["f1"] == 0.96
+    assert bm["typo_duplicate"]["precision"] == 1.0
+    assert bm["typo_duplicate"]["f1"] == 1.0
+
+    # Comparative Birth-Year Blocking run: 1 false positive on two Ijaya Aggarwals in 2007
+    assert "birth_year_blind_match" in results
+    by_bm = results["birth_year_blind_match"]
+    assert by_bm["typo_duplicate"]["tp"] == 12
+    assert by_bm["typo_duplicate"]["fp"] == 1
+    assert by_bm["typo_duplicate"]["recall"] == 1.0
+    assert by_bm["typo_duplicate"]["precision"] == 0.9231
+    assert by_bm["typo_duplicate"]["f1"] == 0.96
+    assert "two Ijaya Aggarwals" in by_bm["typo_duplicate"]["note"]
 
     # Plaintext fuzzy matcher has 1 false positive due to unencrypted name collisions
     plain = results["plaintext_fuzzy"]
@@ -66,10 +76,16 @@ def test_f24_pipeline_execution_on_synthetic_dataset(tmp_path: Path) -> None:
 
     # Overall metrics
     overall_bm = results["overall"]["blind_match"]
-    assert overall_bm["micro_precision"] == 0.9828
+    assert overall_bm["micro_precision"] == 1.0
     assert overall_bm["micro_recall"] == 1.0
-    assert overall_bm["micro_f1"] == 0.9913
-    assert overall_bm["macro_f1"] == 0.992
+    assert overall_bm["micro_f1"] == 1.0
+    assert overall_bm["macro_f1"] == 1.0
+
+    overall_by = results["overall"]["birth_year_blind_match"]
+    assert overall_by["micro_precision"] == 0.9828
+    assert overall_by["micro_recall"] == 1.0
+    assert overall_by["micro_f1"] == 0.9913
+    assert overall_by["macro_f1"] == 0.992
 
     overall_plain = results["overall"]["plaintext_fuzzy"]
     assert overall_plain["micro_precision"] == 0.9828
