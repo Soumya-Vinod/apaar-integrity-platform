@@ -40,11 +40,15 @@ const statusStyles: Record<EditRequest["status"], string> = {
 interface Props {
   institutionId: string;
   academicYear: string;
+  title?: string;
+  description?: string;
 }
 
 export default function PostLockEditRequests({
   institutionId,
   academicYear,
+  title = "Post-lock Edit Requests",
+  description = "Submit admission corrections for review after the submission window closes or locks. Requests require AICTE approval before changes are applied.",
 }: Props) {
   const queryClient = useQueryClient();
   const requestHint = useActionHint("request_edit");
@@ -139,14 +143,8 @@ export default function PostLockEditRequests({
   return (
     <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">
-          Post-lock Edit Requests
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Submit admission corrections for review after the submission window
-          closes or locks. Requests require AICTE approval before changes are
-          applied.
-        </p>
+        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
       </div>
 
       <form
