@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
-import { API_URL, api } from "../../lib/api";
+import { API_URL, apiWithMetadata } from "../../lib/api";
 import { getIdentity } from "../../lib/roles";
 
 type IntegrityRanking = components["schemas"]["IntegrityRanking"];
@@ -83,7 +83,7 @@ export default function Reports({
   const enrolmentQuery = useQuery({
     queryKey: ["aicte-enrolment-report", groupBy],
     queryFn: () =>
-      api<EnrolmentReport>(
+      apiWithMetadata<EnrolmentReport>(
         `/reports/enrolment?group_by=${encodeURIComponent(groupBy)}&format=json`,
       ),
     enabled: false,
@@ -93,7 +93,7 @@ export default function Reports({
   const accreditationQuery = useQuery({
     queryKey: ["aicte-accreditation-report", institutionId],
     queryFn: () =>
-      api<AccreditationReport>(
+      apiWithMetadata<AccreditationReport>(
         `/reports/accreditation/${encodeURIComponent(institutionId)}?format=json`,
       ),
     enabled: false,
@@ -127,9 +127,7 @@ export default function Reports({
     <div className="space-y-6">
       <section className={panel}>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-            SIMULATED
-          </p>
+          {enrolmentQuery.data?.isMock && <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">SIMULATED</p>}
           <h2 className="mt-1 text-lg font-semibold text-slate-950">
             Enrolment reports
           </h2>
@@ -214,7 +212,7 @@ export default function Reports({
                 className="text-sm text-blue-700 underline"
                 onClick={() =>
                   void navigator.clipboard.writeText(
-                    JSON.stringify(enrolmentQuery.data, null, 2),
+                    JSON.stringify(enrolmentQuery.data.data, null, 2),
                   )
                 }
               >
@@ -222,7 +220,7 @@ export default function Reports({
               </button>
             </div>
             <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-4 text-xs text-slate-700">
-              {JSON.stringify(enrolmentQuery.data, null, 2)}
+              {JSON.stringify(enrolmentQuery.data.data, null, 2)}
             </pre>
           </div>
         )}
@@ -230,9 +228,7 @@ export default function Reports({
 
       <section className={panel}>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-            SIMULATED
-          </p>
+          {accreditationQuery.data?.isMock && <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">SIMULATED</p>}
           <h2 className="mt-1 text-lg font-semibold text-slate-950">
             Accreditation report
           </h2>
@@ -284,11 +280,14 @@ export default function Reports({
 
         {accreditationQuery.data && (
           <div className="mt-5">
+            {accreditationQuery.data.data.integrity_score == null && accreditationQuery.data.data.integrity_note && (
+              <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{accreditationQuery.data.data.integrity_note}</p>
+            )}
             <h3 className="mb-2 font-medium text-slate-900">
               Accreditation report details
             </h3>
             <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-4 text-xs text-slate-700">
-              {JSON.stringify(accreditationQuery.data, null, 2)}
+              {JSON.stringify(accreditationQuery.data.data, null, 2)}
             </pre>
           </div>
         )}

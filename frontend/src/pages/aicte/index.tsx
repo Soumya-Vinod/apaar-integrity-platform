@@ -1,9 +1,9 @@
 // Owner: Dev D
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
-import { api } from "../../lib/api";
+import { api, useMockMode } from "../../lib/api";
 import { useIdentity } from "../../lib/roles";
 import Reports from "./Reports";
 
@@ -12,6 +12,8 @@ type IntegrityRanking = components["schemas"]["IntegrityRanking"];
 type IntegrityDetail = components["schemas"]["IntegrityDetail"];
 type AuditVerifyResult = components["schemas"]["AuditVerifyResult"];
 type ResolveRequest = components["schemas"]["ResolveRequest"];
+type EditRequest = components["schemas"]["EditRequest"];
+type EditDecision = components["schemas"]["EditDecision"];
 
 const panel = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm";
 const button =
@@ -59,8 +61,24 @@ function Metric({
   );
 }
 
+function displayValue(value: unknown): string {
+  if (value == null) return "Not available";
+
+  if (typeof value === "string") return value;
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(value, null, 2) ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
 export default function AictePage() {
   const { role } = useIdentity();
+  const isMock = useMockMode();
   const queryClient = useQueryClient();
 
   const [statusFilter, setStatusFilter] = useState("open");
@@ -75,6 +93,46 @@ export default function AictePage() {
   const [auditResult, setAuditResult] = useState<AuditVerifyResult | null>(
     null,
   );
+  const [editNotes, setEditNotes] = useState<Record<string, string>>({});
+
+  const editRequestsQuery = useQuery({
+    queryKey: ["aicte-edit-requests", role],
+    queryFn: () => api<EditRequest[]>("/edit-requests?status=pending"),
+    enabled: role === "aicte_admin",
+    refetchInterval: 15000,
+  });
+
+  const editDecisionMutation = useMutation({
+    mutationFn: ({
+      id,
+      decision,
+      note,
+    }: {
+      id: string;
+      decision: EditDecision["decision"];
+      note: string;
+    }) =>
+      api<EditRequest>(`/edit-requests/${id}/decision`, {
+        method: "POST",
+        body: JSON.stringify({ decision, note }),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["aicte-edit-requests"],
+      });
+    },
+  });
+
+  const institutionDetailsRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!selectedInstitution) return;
+
+    institutionDetailsRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [selectedInstitution]);
 
   const casesQuery = useQuery({
     queryKey: ["aicte-review-cases", role, statusFilter, kindFilter],
@@ -82,24 +140,25 @@ export default function AictePage() {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (kindFilter !== "all") params.set("kind", kindFilter);
+
       const suffix = params.size ? `?${params.toString()}` : "";
       return api<ReviewCase[]>(`/review-cases${suffix}`);
     },
-    refetchInterval: 15_000,
+    refetchInterval: 15000,
     refetchIntervalInBackground: false,
   });
 
   const openCasesQuery = useQuery({
     queryKey: ["aicte-open-review-cases", role],
     queryFn: () => api<ReviewCase[]>("/review-cases?status=open"),
-    refetchInterval: 15_000,
+    refetchInterval: 15000,
     refetchIntervalInBackground: false,
   });
 
   const rankingsQuery = useQuery({
     queryKey: ["aicte-integrity-rankings", role],
     queryFn: () => api<IntegrityRanking[]>("/integrity/institutions"),
-    refetchInterval: 30_000,
+    refetchInterval: 30000,
     refetchIntervalInBackground: false,
   });
 
@@ -119,8 +178,11 @@ export default function AictePage() {
     onSuccess: async () => {
       setSelectedCase(null);
       setReviewerNote("");
+
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["aicte-review-cases"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["aicte-review-cases"],
+        }),
         queryClient.invalidateQueries({
           queryKey: ["aicte-open-review-cases"],
         }),
@@ -134,15 +196,29 @@ export default function AictePage() {
   });
 
   const cases = casesQuery.data ?? [];
-  const rankings = rankingsQuery.data ?? [];
+
+  const rankings = [...(rankingsQuery.data ?? [])].sort((a, b) => {
+    const scoreA = a.integrity_score ?? Number.POSITIVE_INFINITY;
+    const scoreB = b.integrity_score ?? Number.POSITIVE_INFINITY;
+    return scoreA - scoreB;
+  });
+
   const openCount = openCasesQuery.data?.length ?? 0;
+
   const highAnomalyCount = rankings.filter(
     (item) => item.anomaly_score >= 0.7,
   ).length;
-  const averageScore = rankings.length
+
+  const scoredInstitutions = rankings.filter(
+    (item) => item.integrity_score != null,
+  );
+
+  const averageScore = scoredInstitutions.length
     ? Math.round(
-        rankings.reduce((sum, item) => sum + item.integrity_score, 0) /
-          rankings.length,
+        scoredInstitutions.reduce(
+          (sum, item) => sum + (item.integrity_score ?? 0),
+          0,
+        ) / scoredInstitutions.length,
       )
     : null;
 
@@ -156,6 +232,7 @@ export default function AictePage() {
 
   function submitDecision(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     if (!selectedCase || !reviewerNote.trim()) return;
 
     resolveMutation.mutate({
@@ -171,16 +248,27 @@ export default function AictePage() {
     <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
-            APAAR Integrity Platform · SIMULATED
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+              APAAR Integrity Platform
+            </p>
+
+            {isMock && (
+              <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
+                SIMULATED
+              </span>
+            )}
+          </div>
+
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
             AICTE Integrity Dashboard
           </h1>
+
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
             Monitor integrity exceptions, review institution risk signals, and
             record auditable decisions.
           </p>
+
           <p className="mt-2 text-xs text-slate-500">
             Review queue refreshes every 15 seconds. Rankings refresh every 30
             seconds.
@@ -357,7 +445,7 @@ export default function AictePage() {
             Integrity Score rankings
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Institutions are returned in anomaly-priority order by the API.
+            Lowest integrity scores appear first for review priority.
           </p>
         </div>
 
@@ -380,13 +468,13 @@ export default function AictePage() {
                 </tr>
               </thead>
               <tbody>
-                {rankings.map((item) => (
+                {rankings.map((item, index) => (
                   <tr
                     key={item.institution_id}
                     className="border-b border-slate-100 last:border-0"
                   >
                     <td className="py-4 pr-4 font-semibold text-slate-700">
-                      #{item.rank}
+                      #{index + 1}
                     </td>
                     <td className="py-4 pr-4">
                       <button
@@ -404,7 +492,9 @@ export default function AictePage() {
                     </td>
                     <td className="py-4 pr-4">
                       <span className="font-semibold text-slate-900">
-                        {item.integrity_score}/100
+                        {item.integrity_score == null
+                          ? "Not yet calculated"
+                          : `${item.integrity_score}/100`}
                       </span>
                     </td>
                     <td className="py-4 pr-4">
@@ -489,10 +579,129 @@ export default function AictePage() {
         )}
       </section>
 
+      {role === "aicte_admin" && (
+        <section className={panel}>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Pending institution edit requests
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Approve or reject post-lock changes. A reviewer note is required.
+          </p>
+          {editRequestsQuery.isLoading ? (
+            <p className="py-5 text-sm text-slate-500">
+              Loading edit requests…
+            </p>
+          ) : editRequestsQuery.isError ? (
+            <ErrorMessage message="Unable to load edit requests." />
+          ) : (editRequestsQuery.data ?? []).length === 0 ? (
+            <p className="py-5 text-sm text-slate-500">
+              No pending edit requests.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {(editRequestsQuery.data ?? []).map((request) => (
+                <article
+                  key={request.id}
+                  className="rounded-lg border border-slate-200 p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-semibold text-slate-900">
+                        {request.field.replaceAll("_", " ")}
+                      </h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Request {request.id.slice(0, 8)} · Institution{" "}
+                        {request.institution_id}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-800">
+                      Pending
+                    </span>
+                  </div>
+                  <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-slate-500">Old value</dt>
+                      <dd className="break-words whitespace-pre-wrap">
+                        {displayValue(request.old_value)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Requested value</dt>
+                      <dd className="break-words whitespace-pre-wrap font-medium">
+                        {displayValue(request.new_value)}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="mt-2 text-sm">
+                    <span className="text-slate-500">Reason: </span>
+                    {request.reason || "No reason supplied"}
+                  </p>
+                  <label className="mt-3 block text-sm font-medium text-slate-700">
+                    Reviewer note (required)
+                    <textarea
+                      className={`${field} mt-1`}
+                      rows={2}
+                      value={editNotes[request.id] ?? ""}
+                      onChange={(event) =>
+                        setEditNotes((current) => ({
+                          ...current,
+                          [request.id]: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  {editDecisionMutation.isError && (
+                    <p role="alert" className="mt-2 text-sm text-red-700">
+                      Could not save the decision. Check permissions and retry.
+                    </p>
+                  )}
+                  <div className="mt-3 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className={secondaryButton}
+                      disabled={
+                        !editNotes[request.id]?.trim() ||
+                        editDecisionMutation.isPending
+                      }
+                      onClick={() =>
+                        editDecisionMutation.mutate({
+                          id: request.id,
+                          decision: "rejected",
+                          note: editNotes[request.id].trim(),
+                        })
+                      }
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      className={primaryButton}
+                      disabled={
+                        !editNotes[request.id]?.trim() ||
+                        editDecisionMutation.isPending
+                      }
+                      onClick={() =>
+                        editDecisionMutation.mutate({
+                          id: request.id,
+                          decision: "approved",
+                          note: editNotes[request.id].trim(),
+                        })
+                      }
+                    >
+                      Approve
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       <Reports rankings={rankings} />
 
       {selectedInstitution && (
-        <section className={panel}>
+        <section ref={institutionDetailsRef} className={`${panel} scroll-mt-6`}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-950">
@@ -524,7 +733,9 @@ export default function AictePage() {
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-sm text-slate-500">Integrity score</p>
                 <p className="mt-1 text-3xl font-semibold text-slate-950">
-                  {detailQuery.data.integrity_score}/100
+                  {detailQuery.data.integrity_score == null
+                    ? "Not yet calculated"
+                    : `${detailQuery.data.integrity_score}/100`}
                 </p>
               </div>
 
@@ -574,22 +785,24 @@ export default function AictePage() {
                             {signal.severity}
                           </span>
                         </div>
-                        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-xs text-slate-600">
-                          {JSON.stringify(signal.evidence, null, 2)}
-                        </pre>
+                        <dl className="mt-2 space-y-1 text-sm text-slate-600">
+                          {Object.entries(signal.evidence).map(
+                            ([key, value]) => (
+                              <div key={key} className="flex flex-wrap gap-x-2">
+                                <dt className="font-medium capitalize text-slate-700">
+                                  {key.replaceAll("_", " ")}:
+                                </dt>
+                                <dd className="break-words whitespace-pre-wrap">
+                                  {displayValue(value)}
+                                </dd>
+                              </div>
+                            ),
+                          )}
+                        </dl>
                       </li>
                     ))}
                   </ul>
                 )}
-              </div>
-
-              <div>
-                <h3 className="font-medium text-slate-900">
-                  Anomaly explanation
-                </h3>
-                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-4 text-xs text-slate-700">
-                  {JSON.stringify(detailQuery.data.anomaly, null, 2)}
-                </pre>
               </div>
             </div>
           ) : null}

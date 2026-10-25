@@ -41,8 +41,8 @@ function statusStyle(status: string) {
 
 function BarcodeAnimation() {
   const bars = [
-    2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 4, 2, 1, 3, 1, 2,
-    4, 1, 3, 2, 1, 4, 1, 2, 3, 1, 2, 4, 1, 3, 2, 1, 4, 2,
+    2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 4, 2, 1, 3, 1, 2, 4, 1, 3, 2, 1, 4, 1,
+    2, 3, 1, 2, 4, 1, 3, 2, 1, 4, 2,
   ];
 
   return (
@@ -75,8 +75,7 @@ function BarcodeAnimation() {
           <span
             className="absolute inset-y-0 w-1 bg-cyan-300 shadow-[0_0_18px_5px_rgba(103,232,249,0.35)]"
             style={{
-              animation:
-                "blind-match-scan 2.5s ease-in-out infinite alternate",
+              animation: "blind-match-scan 2.5s ease-in-out infinite alternate",
             }}
           />
         </div>
@@ -108,8 +107,7 @@ export default function BlindMatchPage() {
   const { role } = useIdentity();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const canSeeIdentityHints =
-    role === "aicte_admin" || role === "auditor";
+  const canSeeIdentityHints = role === "aicte_admin" || role === "auditor";
 
   const query = useQuery({
     queryKey: ["blind-match-cases", role],
@@ -117,8 +115,7 @@ export default function BlindMatchPage() {
   });
 
   const cases = Array.isArray(query.data) ? query.data : [];
-  const selectedCase =
-    cases.find((item) => item.id === selectedId) ?? cases[0];
+  const selectedCase = cases.find((item) => item.id === selectedId) ?? cases[0];
 
   const averageScore =
     cases.length > 0
@@ -141,8 +138,8 @@ export default function BlindMatchPage() {
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
               Explore potential cross-institution identity matches using
-              similarity scores while respecting the identity visibility
-              rules returned by the API.
+              similarity scores while respecting the identity visibility rules
+              returned by the API.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -186,9 +183,7 @@ export default function BlindMatchPage() {
             <p className="mt-1 text-2xl font-semibold tabular-nums">
               {averageScore === null ? "—" : formatScore(averageScore)}
             </p>
-            <p className="mt-1 text-xs text-slate-400">
-              Across returned cases
-            </p>
+            <p className="mt-1 text-xs text-slate-400">Across returned cases</p>
           </div>
         </div>
       </section>
@@ -197,9 +192,7 @@ export default function BlindMatchPage() {
       {query.isPending && (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
-          <p className="mt-4 font-medium text-slate-800">
-            Loading match cases
-          </p>
+          <p className="mt-4 font-medium text-slate-800">Loading match cases</p>
           <p className="mt-1 text-sm text-slate-500">
             Retrieving available case records.
           </p>
@@ -279,14 +272,26 @@ export default function BlindMatchPage() {
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="break-all text-sm font-semibold text-slate-900">
-                          {item.id}
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-semibold text-slate-900">
+                          {item.institution_a_name ||
+                            "Institution A unavailable"}
                         </p>
-                        <p className="mt-1 text-xs text-slate-500">
+
+                        <p className="mt-1 break-words text-sm text-slate-700">
+                          {item.institution_b_name ||
+                            "Institution B unavailable"}
+                        </p>
+
+                        <p className="mt-2 break-all text-xs text-slate-400">
+                          Case ID: {item.id}
+                        </p>
+
+                        <p className="mt-2 text-xs text-slate-500">
                           Dice similarity
                         </p>
                       </div>
+
                       <span
                         className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyle(item.status)}`}
                       >
@@ -301,6 +306,7 @@ export default function BlindMatchPage() {
                           style={{ width: `${scorePercent(item.dice)}%` }}
                         />
                       </div>
+
                       <span className="min-w-14 text-right text-sm font-semibold tabular-nums text-slate-800">
                         {formatScore(item.dice)}
                       </span>
@@ -363,9 +369,9 @@ export default function BlindMatchPage() {
                     />
                   </div>
                   <p className="mt-2 text-xs leading-5 text-slate-500">
-                    Similarity is not the probability that two records belong
-                    to the same person. Review the available evidence before
-                    making a decision.
+                    Similarity is not the probability that two records belong to
+                    the same person. Review the available evidence before making
+                    a decision.
                   </p>
                 </div>
 
@@ -391,35 +397,16 @@ export default function BlindMatchPage() {
                     <p className="text-xs text-slate-500">Record A</p>
                     <MetadataValue value={selectedCase.record_a} />
                   </div>
+
                   <div className="rounded-xl border border-slate-200 p-4">
                     <p className="text-xs text-slate-500">Record B</p>
                     <MetadataValue value={selectedCase.record_b} />
                   </div>
-                  <div className="rounded-xl border border-slate-200 p-4">
-                    <p className="text-xs text-slate-500">Institution A</p>
-                    <MetadataValue
-                      value={
-                        selectedCase.institution_a_name ||
-                        (selectedCase.institution_a_id === "hidden"
-                          ? "Hidden institution"
-                          : selectedCase.institution_a_id)
-                      }
-                    />
-                  </div>
-                  <div className="rounded-xl border border-slate-200 p-4">
-                    <p className="text-xs text-slate-500">Institution B</p>
-                    <MetadataValue
-                      value={
-                        selectedCase.institution_b_name ||
-                        (selectedCase.institution_b_id === "hidden"
-                          ? "Hidden institution"
-                          : selectedCase.institution_b_id)
-                      }
-                    />
-                  </div>
                 </div>
 
                 {/* Programme metadata */}
+
+                {/* Institution and programme metadata */}
                 <div className="rounded-xl border border-slate-200 p-4">
                   <h4 className="text-sm font-semibold text-slate-900">
                     Institution and programme details
@@ -428,6 +415,12 @@ export default function BlindMatchPage() {
                   <div className="mt-3 grid gap-4 sm:grid-cols-2">
                     <div>
                       <p className="text-xs text-slate-500">Institution A</p>
+                      <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                        {selectedCase.institution_a_name ||
+                          (selectedCase.institution_a_id === "hidden"
+                            ? "Hidden institution"
+                            : "Institution name unavailable")}
+                      </p>
                       <MetadataValue
                         value={
                           [
@@ -439,8 +432,15 @@ export default function BlindMatchPage() {
                         }
                       />
                     </div>
+
                     <div>
                       <p className="text-xs text-slate-500">Institution B</p>
+                      <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                        {selectedCase.institution_b_name ||
+                          (selectedCase.institution_b_id === "hidden"
+                            ? "Hidden institution"
+                            : "Institution name unavailable")}
+                      </p>
                       <MetadataValue
                         value={
                           [
@@ -456,7 +456,9 @@ export default function BlindMatchPage() {
 
                   <div className="mt-4 border-t border-slate-100 pt-3">
                     <p className="text-xs text-slate-500">Case created</p>
-                    <MetadataValue value={formatDate(selectedCase.created_at)} />
+                    <MetadataValue
+                      value={formatDate(selectedCase.created_at)}
+                    />
                   </div>
                 </div>
 
@@ -474,15 +476,11 @@ export default function BlindMatchPage() {
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
                         <div>
                           <p className="text-xs text-amber-800">Hint A</p>
-                          <MetadataValue
-                            value={selectedCase.identity_hint_a}
-                          />
+                          <MetadataValue value={selectedCase.identity_hint_a} />
                         </div>
                         <div>
                           <p className="text-xs text-amber-800">Hint B</p>
-                          <MetadataValue
-                            value={selectedCase.identity_hint_b}
-                          />
+                          <MetadataValue value={selectedCase.identity_hint_b} />
                         </div>
                       </div>
                     </div>
@@ -522,8 +520,8 @@ export default function BlindMatchPage() {
                   </span>
                   <p className="text-sm leading-6 text-cyan-950">
                     This screen displays only information returned by the API.
-                    Identity visibility must be enforced by the backend.
-                    A similarity score alone is not proof of a duplicate.
+                    Identity visibility must be enforced by the backend. A
+                    similarity score alone is not proof of a duplicate.
                   </p>
                 </div>
               </div>
