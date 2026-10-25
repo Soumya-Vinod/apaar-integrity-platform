@@ -645,6 +645,59 @@ interface ShareCredentialState {
   onRevoked: () => void
 }
 
+// Credential QRs carry ~740 characters, so they are drawn large, pure black on white, with error
+// correction L (fewest modules) and the standard 4-module quiet zone.
+const QR_PROPS = { level: 'L', marginSize: 4, bgColor: '#ffffff', fgColor: '#000000' } as const
+
+function CredentialQr({ value, revoked }: { value: string; revoked: boolean }) {
+  const [enlarged, setEnlarged] = useState(false)
+
+  useEffect(() => {
+    if (!enlarged) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setEnlarged(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [enlarged])
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setEnlarged(true)}
+        disabled={revoked}
+        aria-label="Enlarge QR code"
+        className={`flex flex-col items-center rounded-xl border border-slate-200 bg-white ${revoked ? 'opacity-40' : 'hover:border-blue-400'}`}
+      >
+        <QRCodeSVG value={value} size={320} {...QR_PROPS} className="h-auto w-[min(320px,78vw)] sm:w-[400px] lg:w-[440px]" />
+        {!revoked && <span className="pb-3 text-sm font-semibold text-blue-700">Tap to enlarge</span>}
+      </button>
+      {enlarged && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Credential QR code"
+          onClick={() => setEnlarged(false)}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-white p-4"
+        >
+          <QRCodeSVG value={value} size={320} {...QR_PROPS} className="h-auto w-[min(94vw,82vh)]" />
+          <p className="text-center text-base font-semibold text-slate-800">
+            Turn your screen brightness up and hold the phone steady.
+          </p>
+          <button
+            type="button"
+            onClick={() => setEnlarged(false)}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Close
+          </button>
+        </div>
+      )}
+    </>
+  )
+}
+
 function ShareCredential({ credential, revoked, onCredentialCreated, onRevoked }: ShareCredentialState) {
   const [recipient, setRecipient] = useState('')
   const [expiry, setExpiry] = useState('1d')
@@ -809,9 +862,7 @@ function ShareCredential({ credential, revoked, onCredentialCreated, onRevoked }
             )}
           </div>
           <div className="mt-6 flex flex-col items-center">
-            <div className={`rounded-xl border border-slate-200 bg-white p-4 ${revoked ? 'opacity-40' : ''}`}>
-              <QRCodeSVG value={credential.qr_text} size={220} includeMargin />
-            </div>
+            <CredentialQr value={credential.qr_text} revoked={revoked} />
             <p className="mt-4 max-w-md text-center text-sm text-slate-600">
               Your APAAR number is not inside this QR. Only the facts you ticked are shared.
             </p>
