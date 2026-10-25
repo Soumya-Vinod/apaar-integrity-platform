@@ -26,7 +26,11 @@ The evaluator contains **zero duplicate detection logic**, **zero hardcoded benc
 
 ## 2. Dataset & Scope
 
-- **Dataset Directory:** `datagen/out/`
+- **Dataset Directory:** `datagen/out/` (gitignored; generated locally)
+- **Exact Generation Command:**
+  ```bash
+  cd datagen && uv run python generate.py --seed 42 --institutions 25 --students 5000 --out out
+  ```
 - **Admissions Dataset:** 5,063 records (`admissions.csv`) across 25 institutions and 396 seat pools (`intake.csv`).
 - **Ground Truth File:** `datagen/out/ground_truth.csv` (128 total labelled entries).
 - **Target Anomalies Evaluated (57 planted cases):**
