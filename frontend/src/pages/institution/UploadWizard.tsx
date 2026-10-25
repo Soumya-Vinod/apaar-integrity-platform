@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
 import { api } from "../../lib/api";
 import { apiErrorMessage } from "../../components/format";
+import { useActionHint } from "../../lib/roles";
 
 type Batch = components["schemas"]["Batch"];
 type UploadResult = Omit<
@@ -81,6 +82,9 @@ export default function UploadWizard({
   institutionId: string;
 }) {
   const queryClient = useQueryClient();
+  const uploadHint = useActionHint("upload_batch");
+  const mapHint = useActionHint("map_batch");
+  const commitHint = useActionHint("commit_batch");
   const [file, setFile] = useState<File | null>(null);
   const [upload, setUpload] = useState<UploadResult | null>(null);
   const [batch, setBatch] = useState<Batch | null>(null);
@@ -297,11 +301,13 @@ export default function UploadWizard({
           <button
             type="button"
             onClick={() => void uploadFile()}
-            disabled={!file || busy}
+            disabled={!file || busy || Boolean(uploadHint)}
+            title={uploadHint}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
             {busy ? "Uploading…" : "Upload and suggest mapping"}
           </button>
+          {uploadHint && <p className="text-xs text-slate-500">{uploadHint}</p>}
         </div>
       )}
 
@@ -393,11 +399,13 @@ export default function UploadWizard({
           <button
             type="button"
             onClick={() => void saveMapping()}
-            disabled={busy}
+            disabled={busy || Boolean(mapHint)}
+            title={mapHint}
             className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
           >
             {busy ? "Applying mapping…" : "Apply mapping and validate"}
           </button>
+          {mapHint && <p className="text-xs text-slate-500">{mapHint}</p>}
         </div>
       )}
 
@@ -484,11 +492,13 @@ export default function UploadWizard({
           <button
             type="button"
             onClick={() => void commitBatch()}
-            disabled={busy || batch.status === "committed"}
+            disabled={busy || batch.status === "committed" || Boolean(commitHint)}
+            title={commitHint}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
             {busy ? "Processing…" : "Commit valid rows"}
           </button>
+          {commitHint && <p className="text-xs text-slate-500">{commitHint}</p>}
         </div>
       )}
 

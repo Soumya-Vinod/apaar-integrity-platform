@@ -5,6 +5,7 @@ import type { components } from "../../lib/api-types";
 import { api } from "../../lib/api";
 import ErrorAlert from "../../components/ErrorAlert";
 import { actorLabel } from "../../components/format";
+import { useActionHint } from "../../lib/roles";
 
 type Admission = components["schemas"]["Admission"];
 type EditRequest = components["schemas"]["EditRequest"];
@@ -46,6 +47,7 @@ export default function PostLockEditRequests({
   academicYear,
 }: Props) {
   const queryClient = useQueryClient();
+  const requestHint = useActionHint("request_edit");
 
   const [admissionId, setAdmissionId] = useState("");
   const [selectedField, setSelectedField] = useState("");
@@ -305,6 +307,7 @@ export default function PostLockEditRequests({
           type="submit"
           disabled={
             createMutation.isPending ||
+            Boolean(requestHint) ||
             !admissionId ||
             !field ||
             !reason.trim() ||
@@ -314,6 +317,7 @@ export default function PostLockEditRequests({
         >
           {createMutation.isPending ? "Submitting…" : "Submit edit request"}
         </button>
+        {requestHint && <p className="text-xs text-slate-500">{requestHint}</p>}
       </form>
 
       <div className="space-y-3">
