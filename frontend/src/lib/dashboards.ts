@@ -3,7 +3,17 @@
 // order of its sections. Pages render sections in exactly this order; permissions stay in roles.ts.
 import type { Role } from './roles'
 
-export type Accent = 'teal' | 'indigo' | 'blue' | 'slate'
+export type Accent = 'teal' | 'indigo' | 'blue' | 'slate' | 'emerald' | 'amber'
+
+// One colour per role across the app: page headers, landing cards and shared pages.
+export const ROLE_ACCENT: Record<Role, Accent> = {
+  institution_operator: 'teal',
+  institution_admin: 'indigo',
+  aicte_admin: 'blue',
+  auditor: 'slate',
+  student: 'emerald',
+  verifier: 'amber',
+}
 
 export interface DashboardHeader {
   title: string
@@ -56,27 +66,42 @@ export const AICTE_SECTIONS: Record<AicteRole, readonly AicteSection[]> = {
   auditor: ['read_only_banner', 'audit_status', 'decision_log', 'reports', 'exception_queue', 'rankings'],
 }
 
-export const DASHBOARD_HEADERS: Record<InstitutionRole | AicteRole, DashboardHeader> = {
+export const DASHBOARD_HEADERS: Record<Role, DashboardHeader> = {
   institution_operator: {
     title: 'Data entry workspace',
     subtitle: 'Upload admission batches, fix the rows that failed and track your edit requests.',
-    accent: 'teal',
+    accent: ROLE_ACCENT.institution_operator,
   },
   institution_admin: {
     title: 'Institution oversight',
     subtitle: 'Keep every programme within approved intake and close out open warnings.',
-    accent: 'indigo',
+    accent: ROLE_ACCENT.institution_admin,
   },
   aicte_admin: {
     title: 'AICTE command centre',
     subtitle: 'Decide open cases and edit requests, then act on the institutions most at risk.',
-    accent: 'blue',
+    accent: ROLE_ACCENT.aicte_admin,
   },
   auditor: {
     title: 'Audit view · read-only',
     subtitle: 'Check the audit chain and trace every decision back to who made it and why.',
-    accent: 'slate',
+    accent: ROLE_ACCENT.auditor,
   },
+  student: {
+    title: 'My records',
+    subtitle: "See where you're reported, confirm it, and share proof",
+    accent: ROLE_ACCENT.student,
+  },
+  verifier: {
+    title: 'Verify a credential',
+    subtitle: 'Scan or paste a QR; checked offline against the public key',
+    accent: ROLE_ACCENT.verifier,
+  },
+}
+
+/** Header for a page shared between roles (/blindmatch, /map), tinted with the viewer's accent. */
+export function viewerHeader(role: Role, title: string, subtitle: string): DashboardHeader {
+  return { title, subtitle, accent: ROLE_ACCENT[role] }
 }
 
 /** Sections of /institution for ``role``; anyone else falls back to the operator workspace. */

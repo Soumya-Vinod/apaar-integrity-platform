@@ -4,12 +4,14 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
   DASHBOARD_HEADERS,
+  ROLE_ACCENT,
   aicteHeader,
   aicteSections,
   institutionHeader,
   institutionSections,
+  viewerHeader,
 } from '../src/lib/dashboards.ts'
-import { canAccess, canPerform } from '../src/lib/roles.ts'
+import { ROLES, canAccess, canPerform } from '../src/lib/roles.ts'
 
 describe('role dashboards', () => {
   it('gives the institution operator a data entry workspace, seats then upload', () => {
@@ -69,6 +71,24 @@ describe('role dashboards', () => {
     assert.equal(new Set(headers.map((header) => header.title)).size, headers.length)
     assert.equal(new Set(headers.map((header) => header.accent)).size, headers.length)
     for (const header of headers) assert.ok(header.subtitle.length > 0, header.title)
+  })
+
+  it('keeps one accent per role across the app', () => {
+    assert.equal(ROLE_ACCENT.student, 'emerald')
+    assert.equal(ROLE_ACCENT.verifier, 'amber')
+    assert.equal(new Set(Object.values(ROLE_ACCENT)).size, ROLES.length)
+    for (const role of ROLES) assert.equal(DASHBOARD_HEADERS[role].accent, ROLE_ACCENT[role], role)
+    assert.equal(DASHBOARD_HEADERS.student.title, 'My records')
+    assert.equal(DASHBOARD_HEADERS.verifier.title, 'Verify a credential')
+    for (const role of ROLES) assert.ok(canAccess(role, '/verifier'), role)
+    // Shared pages take the viewer's accent.
+    assert.equal(viewerHeader('aicte_admin', 'Blind Match', 'x').accent, 'blue')
+    assert.equal(viewerHeader('auditor', 'Blind Match', 'x').accent, 'slate')
+  })
+
+  it('colours the landing role cards from the role accents', () => {
+    const home = readFileSync(new URL('../src/pages/home/index.tsx', import.meta.url), 'utf8')
+    assert.match(home, /accentTints\[ROLE_ACCENT\[card\.role\]\]/)
   })
 
   it('only shows a role sections it may use', () => {
