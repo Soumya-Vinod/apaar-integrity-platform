@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
 import { API_URL, apiWithMetadata } from "../../lib/api";
-import { getIdentity } from "../../lib/roles";
+import { getIdentity, useActionHint } from "../../lib/roles";
 import { apiErrorMessage } from "../../components/format";
 
 type IntegrityRanking = components["schemas"]["IntegrityRanking"];
@@ -99,6 +99,8 @@ export default function Reports({
     retry: false,
   });
 
+  const downloadHint = useActionHint("download_enrolment_report");
+  const accreditationHint = useActionHint("load_accreditation_report");
   const [downloadError, setDownloadError] = useState("");
   const [downloading, setDownloading] = useState<ExportFormat | null>(null);
 
@@ -170,7 +172,8 @@ export default function Reports({
           <button
             type="button"
             className={secondaryButton}
-            disabled={downloading !== null}
+            disabled={downloading !== null || Boolean(downloadHint)}
+            title={downloadHint}
             onClick={() => void handleDownload("pdf")}
           >
             {downloading === "pdf" ? "Downloading…" : "Download PDF"}
@@ -179,7 +182,8 @@ export default function Reports({
           <button
             type="button"
             className={primaryButton}
-            disabled={downloading !== null}
+            disabled={downloading !== null || Boolean(downloadHint)}
+            title={downloadHint}
             onClick={() => void handleDownload("xlsx")}
           >
             {downloading === "xlsx" ? "Downloading…" : "Download Excel"}
@@ -256,7 +260,12 @@ export default function Reports({
           <button
             type="button"
             className={primaryButton}
-            disabled={!institutionId || accreditationQuery.isFetching}
+            disabled={
+              !institutionId ||
+              accreditationQuery.isFetching ||
+              Boolean(accreditationHint)
+            }
+            title={accreditationHint}
             onClick={() => void accreditationQuery.refetch()}
           >
             {accreditationQuery.isFetching ? "Loading…" : "Load report"}
