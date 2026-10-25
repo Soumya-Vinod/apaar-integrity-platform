@@ -7,7 +7,10 @@ import type { components } from "../../lib/api-types";
 import { api, apiWithMetadata } from "../../lib/api";
 import { canPerform, useActionHint, useIdentity } from "../../lib/roles";
 import ErrorAlert from "../../components/ErrorAlert";
-import DashboardHeader, { headerButton } from "../../components/DashboardHeader";
+import DashboardHeader, {
+  ReadOnlyBanner,
+  headerButton,
+} from "../../components/DashboardHeader";
 import {
   aicteHeader,
   aicteSections,
@@ -392,18 +395,10 @@ export default function AictePage() {
   // One renderer per section; aicteSections(role) decides which appear and in what order.
   const render: Record<AicteSection, ReactNode> = {
     read_only_banner: (
-      <div
-        role="note"
-        className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-300 bg-slate-100 px-5 py-3 text-sm text-slate-800"
-      >
-        <span className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
-          Read-only
-        </span>
-        <span>
-          You can view, verify and download. Decisions and edits are made by
-          AICTE admins; every one is in the decision log below.
-        </span>
-      </div>
+      <ReadOnlyBanner>
+        You can view, verify and download. Decisions and edits are made by
+        AICTE admins; every one is in the decision log below.
+      </ReadOnlyBanner>
     ),
     decisions_waiting: (
       <section aria-labelledby="decisions-waiting-title">

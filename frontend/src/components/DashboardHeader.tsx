@@ -25,7 +25,32 @@ const bands: Record<Accent, { band: string; eyebrow: string; rule: string }> = {
     eyebrow: "text-slate-300",
     rule: "bg-slate-300",
   },
+  emerald: {
+    band: "from-emerald-950 via-emerald-800 to-emerald-600",
+    eyebrow: "text-emerald-200",
+    rule: "bg-emerald-300",
+  },
+  amber: {
+    band: "from-[#2b1503] via-amber-800 to-amber-600",
+    eyebrow: "text-amber-200",
+    rule: "bg-amber-300",
+  },
 };
+
+/** The auditor's read-only notice, shown above the header on AICTE pages. */
+export function ReadOnlyBanner({ children }: { children: ReactNode }) {
+  return (
+    <div
+      role="note"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-300 bg-slate-100 px-5 py-3 text-sm text-slate-800"
+    >
+      <span className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
+        Read-only
+      </span>
+      <span>{children}</span>
+    </div>
+  );
+}
 
 /** Role dashboard header: accent band, title, one-line subtitle, role badge and actions. */
 export default function DashboardHeader({
