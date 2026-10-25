@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
 import { api, apiWithMetadata } from "../../lib/api";
-import { useIdentity } from "../../lib/roles";
+import { canPerform, useActionHint, useIdentity } from "../../lib/roles";
 import ErrorAlert from "../../components/ErrorAlert";
+import RoleBadge from "../../components/RoleBadge";
 import {
   actorLabel,
   evidenceSentences,
@@ -153,6 +154,11 @@ function CaseInstitutions({
 
 export default function AictePage() {
   const { role } = useIdentity();
+  const decideEditHint = useActionHint("decide_edit_request");
+  const resolveCaseHint = useActionHint("resolve_review_case");
+  const auditHint = useActionHint("verify_audit_chain");
+  // GET /edit-requests allows both; only aicte_admin may decide.
+  const canReadEditRequests = role === "aicte_admin" || role === "auditor";
   const queryClient = useQueryClient();
   const { lookup } = useInstitutions();
 
@@ -179,7 +185,7 @@ export default function AictePage() {
           ? "/edit-requests"
           : `/edit-requests?status=${editStatus}`,
       ),
-    enabled: role === "aicte_admin",
+    enabled: canReadEditRequests,
     refetchInterval: 15000,
   });
 
@@ -390,6 +396,8 @@ export default function AictePage() {
                 SIMULATED
               </span>
             )}
+
+            <RoleBadge />
           </div>
 
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
@@ -558,7 +566,9 @@ export default function AictePage() {
                             resolveMutation.reset();
                           }}
                         >
-                          Review
+                          {canPerform(role, "resolve_review_case")
+                            ? "Review"
+                            : "View"}
                         </button>
                       ) : (
                         <span className="text-xs text-slate-500">Resolved</span>
@@ -677,7 +687,8 @@ export default function AictePage() {
           <button
             type="button"
             className={primaryButton}
-            disabled={auditMutation.isPending}
+            disabled={auditMutation.isPending || Boolean(auditHint)}
+            title={auditHint}
             onClick={() => auditMutation.mutate()}
           >
             {auditMutation.isPending ? "Verifying…" : "Verify audit chain"}
@@ -720,7 +731,7 @@ export default function AictePage() {
         )}
       </section>
 
-      {role === "aicte_admin" && (
+      {canReadEditRequests && (
         <section className={panel}>
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div>
@@ -731,6 +742,11 @@ export default function AictePage() {
                 Approve or reject post-lock changes. A reviewer note is
                 required.
               </p>
+              {decideEditHint && (
+                <p className="mt-1 text-xs font-medium text-amber-800">
+                  {decideEditHint}: decisions are disabled.
+                </p>
+              )}
             </div>
             <select
               aria-label="Filter edit requests by status"
@@ -849,6 +865,7 @@ export default function AictePage() {
                         <textarea
                           className={`${field} mt-1`}
                           rows={2}
+                          disabled={Boolean(decideEditHint)}
                           value={editNotes[request.id] ?? ""}
                           onChange={(event) =>
                             setEditNotes((current) => ({
@@ -872,9 +889,11 @@ export default function AictePage() {
                           type="button"
                           className={secondaryButton}
                           disabled={
+                            Boolean(decideEditHint) ||
                             !editNotes[request.id]?.trim() ||
                             editDecisionMutation.isPending
                           }
+                          title={decideEditHint}
                           onClick={() =>
                             editDecisionMutation.mutate({
                               id: request.id,
@@ -889,9 +908,11 @@ export default function AictePage() {
                           type="button"
                           className={primaryButton}
                           disabled={
+                            Boolean(decideEditHint) ||
                             !editNotes[request.id]?.trim() ||
                             editDecisionMutation.isPending
                           }
+                          title={decideEditHint}
                           onClick={() =>
                             editDecisionMutation.mutate({
                               id: request.id,
@@ -1116,6 +1137,16 @@ export default function AictePage() {
             </div>
 
             <form onSubmit={submitDecision} className="mt-5 space-y-4">
+              {resolveCaseHint && (
+                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                  {resolveCaseHint}. You can read the evidence but not record a
+                  decision.
+                </p>
+              )}
+              <fieldset
+                disabled={Boolean(resolveCaseHint)}
+                className="space-y-4 disabled:opacity-60"
+              >
               <div>
                 <label
                   htmlFor="decision"
@@ -1160,6 +1191,7 @@ export default function AictePage() {
                   A non-empty note is required for every decision.
                 </p>
               </div>
+              </fieldset>
 
               {resolveMutation.isError && (
                 <ErrorAlert
@@ -1188,7 +1220,12 @@ export default function AictePage() {
                 <button
                   type="submit"
                   className={primaryButton}
-                  disabled={resolveMutation.isPending || !reviewerNote.trim()}
+                  disabled={
+                    Boolean(resolveCaseHint) ||
+                    resolveMutation.isPending ||
+                    !reviewerNote.trim()
+                  }
+                  title={resolveCaseHint}
                 >
                   {resolveMutation.isPending ? "Saving…" : "Save decision"}
                 </button>

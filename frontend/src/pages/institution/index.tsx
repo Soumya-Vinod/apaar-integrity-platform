@@ -1,9 +1,11 @@
 // Owner: Dev D
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
 import { api } from "../../lib/api";
-import { useIdentity } from "../../lib/roles";
+import { actionHint, useIdentity } from "../../lib/roles";
+import ErrorAlert from "../../components/ErrorAlert";
+import RoleBadge from "../../components/RoleBadge";
 import UploadWizard from "./UploadWizard";
 import StudentRegistry from "./StudentRegistry";
 import PostLockEditRequests from "./PostLockEditRequests";
@@ -61,6 +63,8 @@ function BatchHistory({ institutionId }: { institutionId: string }) {
   const [offset, setOffset] = useState(0);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const limit = 10;
+  const { role } = useIdentity();
+  const queryClient = useQueryClient();
 
   const batchesQuery = useQuery({
     queryKey: ["institution-batches", institutionId, offset],
@@ -72,6 +76,35 @@ function BatchHistory({ institutionId }: { institutionId: string }) {
     queryFn: () => api<ValidationIssue[]>(`/batches/${selectedBatchId}/issues`),
     enabled: Boolean(selectedBatchId),
   });
+
+  const resolveMutation = useMutation({
+    mutationFn: (payload: { issueId: number; note: string }) =>
+      api<ValidationIssue>(`/validation-issues/${payload.issueId}/resolve`, {
+        method: "POST",
+        body: JSON.stringify({ note: payload.note }),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["batch-issues", selectedBatchId],
+      });
+    },
+  });
+
+  function resolve(issue: ValidationIssue) {
+    const note = window
+      .prompt(`Resolution note for row ${issue.row_number} (${issue.rule_code})?`)
+      ?.trim();
+    if (!note) return;
+    resolveMutation.mutate({ issueId: issue.id, note });
+  }
+
+  // Errors are fixed by a correction upload; review findings need an AICTE admin.
+  function resolveHint(issue: ValidationIssue): string | undefined {
+    return actionHint(
+      role,
+      issue.severity === "review" ? "resolve_review_issue" : "resolve_issue",
+    );
+  }
 
   const data = batchesQuery.data;
   const total = data?.total ?? 0;
@@ -225,6 +258,13 @@ function BatchHistory({ institutionId }: { institutionId: string }) {
             </button>
           </div>
 
+          {resolveMutation.isError && (
+            <ErrorAlert
+              action="Resolving the issue"
+              error={resolveMutation.error}
+            />
+          )}
+
           {issuesQuery.isPending ? (
             <p className="text-sm text-slate-500">Loading issues…</p>
           ) : issuesQuery.isError ? (
@@ -252,6 +292,7 @@ function BatchHistory({ institutionId }: { institutionId: string }) {
                     <th className="px-3 py-2">Rule</th>
                     <th className="px-3 py-2">Message</th>
                     <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -273,6 +314,33 @@ function BatchHistory({ institutionId }: { institutionId: string }) {
                       <td className="px-3 py-3">{issue.message}</td>
                       <td className="px-3 py-3">
                         {issue.resolved ? "Resolved" : "Open"}
+                      </td>
+                      <td className="px-3 py-3">
+                        {issue.resolved ? null : issue.severity === "error" ? (
+                          <span className="text-xs text-slate-500">
+                            Fixed by a correction upload
+                          </span>
+                        ) : (
+                          <div className="space-y-1">
+                            <button
+                              type="button"
+                              onClick={() => resolve(issue)}
+                              disabled={
+                                Boolean(resolveHint(issue)) ||
+                                resolveMutation.isPending
+                              }
+                              title={resolveHint(issue)}
+                              className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Resolve
+                            </button>
+                            {resolveHint(issue) && (
+                              <p className="whitespace-nowrap text-xs text-slate-500">
+                                {resolveHint(issue)}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -386,9 +454,12 @@ export default function InstitutionPage() {
     <section className="space-y-6">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-medium text-indigo-700">
-            Institution Portal
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-medium text-indigo-700">
+              Institution Portal
+            </p>
+            <RoleBadge />
+          </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">
             Seat Ledger
           </h1>

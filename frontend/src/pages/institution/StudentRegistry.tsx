@@ -1,8 +1,10 @@
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
 import { api } from "../../lib/api";
+import { useActionHint } from "../../lib/roles";
+import ErrorAlert from "../../components/ErrorAlert";
 
 type Admission = components["schemas"]["Admission"];
 
@@ -28,6 +30,36 @@ export default function StudentRegistry({
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [offset, setOffset] = useState(0);
+  const queryClient = useQueryClient();
+  const withdrawHint = useActionHint("withdraw_admission");
+
+  const withdrawMutation = useMutation({
+    mutationFn: (payload: { admissionId: string; reason: string }) =>
+      api<Admission>(`/admissions/${payload.admissionId}/withdraw`, {
+        method: "POST",
+        body: JSON.stringify({ reason: payload.reason }),
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["institution-admissions", institutionId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["seat-ledger", institutionId],
+        }),
+      ]);
+    },
+  });
+
+  function withdraw(admission: Admission) {
+    const reason = window
+      .prompt(
+        `Reason for withdrawing ${admission.student_name}? This releases the seat.`,
+      )
+      ?.trim();
+    if (!reason) return;
+    withdrawMutation.mutate({ admissionId: admission.id, reason });
+  }
 
   const query = useQuery({
     queryKey: [
@@ -159,6 +191,19 @@ export default function StudentRegistry({
         </button>
       </div>
 
+      {withdrawHint && (
+        <p id="withdraw-hint" className="text-xs text-slate-500">
+          Withdraw: {withdrawHint}
+        </p>
+      )}
+
+      {withdrawMutation.isError && (
+        <ErrorAlert
+          action="Withdrawing the admission"
+          error={withdrawMutation.error}
+        />
+      )}
+
       {query.isPending ? (
         <p className="py-8 text-center text-sm text-slate-500">
           {isSearching
@@ -195,6 +240,7 @@ export default function StudentRegistry({
                   <th className="px-4 py-3">Admission date</th>
                   <th className="px-4 py-3">Seat pool</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Action</th>
                 </tr>
               </thead>
 
@@ -236,6 +282,25 @@ export default function StudentRegistry({
                       >
                         {admission.status.replaceAll("_", " ")}
                       </span>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {admission.status !== "withdrawn" && (
+                        <button
+                          type="button"
+                          onClick={() => withdraw(admission)}
+                          disabled={
+                            Boolean(withdrawHint) || withdrawMutation.isPending
+                          }
+                          title={withdrawHint}
+                          aria-describedby={
+                            withdrawHint ? "withdraw-hint" : undefined
+                          }
+                          className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Withdraw
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
