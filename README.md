@@ -78,17 +78,43 @@ flowchart LR
 
 ### Detection results
 
-> TODO: fill in from a `load_demo` run against datagen ground truth (`ground_truth.csv`).
+Live backend paths, scored against datagen ground truth (`ground_truth.csv`), which the evaluator reads only after predictions are sealed.
 
-| Signal | Precision | Recall | Planted cases |
-| --- | --- | --- | --- |
-| Intake overrun | TODO | TODO | TODO |
-| Cross-institution duplicate (same APAAR) | TODO | TODO | TODO |
-| Blind Match (typo duplicates) | TODO | TODO | TODO |
-| Shared contact cluster | TODO | TODO | TODO |
-| Backdated admission | TODO | TODO | TODO |
+| Signal | What it catches | Granularity | Planted cases | TP | FP | FN | Precision | Recall | F1 |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Intake overrun | Seat pools filled past approved intake | Seat pool | 3 | 3 | 0 | 0 | 1.00 | 1.00 | 1.00 |
+| Cross-institution duplicate (same APAAR) | One APAAR ID enrolled at two institutions | Pair | 10 | 10 | 0 | 0 | 1.00 | 1.00 | 1.00 |
+| Blind Match (typo duplicates) | Same student re-entered with a name typo and missing or different APAAR | Pair | 12 | 12 | 0 | 0 | 1.00 | 1.00 | 1.00 |
+| Shared contact cluster | Many students sharing one phone and email | Record | 16 | 16 | 0 | 0 | 1.00 | 1.00 | 1.00 |
+| Backdated admission | Admissions dated before the admission window opened | Record | 16 | 16 | 0 | 0 | 1.00 | 1.00 | 1.00 |
 
-`load_demo` prints Blind Match precision and recall against the planted `typo_duplicate` pairs.
+Overall: micro F1 1.00, macro F1 1.00. All 57 planted anomalies found, 0 false alarms.
+
+**Blind Match vs alternatives** (typo duplicates, 12 planted pairs):
+
+| Approach | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: |
+| Live Blind Match (keyed full-DOB blocking) | 1.00 | 1.00 | 1.00 |
+| Blind Match with birth-year blocking | 0.92 | 1.00 | 0.96 |
+| Plain-text fuzzy name matching | 0.92 | 1.00 | 0.96 |
+
+Blind Match matches plain-text accuracy without either institution sharing student identity; the live system blocks on a keyed hash of the full date of birth because birth-year blocking let two different students with the same name (born a month apart) score above the threshold, which is the one false positive above.
+
+**Scope**
+
+- Synthetic data with planted anomalies (seed 42, 25 institutions, 5,000 students). This is a benchmark of the detection logic, not a real-world accuracy claim.
+- Known limitation: a typo in the date of birth itself puts the two records in different blocks, so that duplicate escapes Blind Match.
+
+**Reproduce** (from the repo root):
+
+```powershell
+cd datagen
+uv run python generate.py --seed 42 --institutions 25 --students 5000 --out out
+cd ..
+uv run --project engine python -m engine.evaluation.pipeline datagen/out evaluation/results.json
+```
+
+Full method, per-pipeline breakdown and notes: [`evaluation/REPORT.md`](evaluation/REPORT.md).
 
 ### Scripted demo: Shadow Institute of Technology
 
