@@ -1,14 +1,18 @@
 // Owner: Dev X
-import { Html5Qrcode } from 'html5-qrcode'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import zxingWasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url'
 import { ApiError, api } from '../../lib/api'
 import type { components } from '../../lib/api-types'
+import { configureZxingWasm, decodeImageFile } from './qr-decoder'
+import { useQrCamera } from './use-qr-camera'
 import {
   getStatusDetails,
   resolveCredentialStatus,
   verifyCredentialWorkflow,
   type VerificationResult,
 } from './verify-stub'
+
+configureZxingWasm(zxingWasmUrl)
 
 type PublicKey = components['schemas']['PublicKey']
 type RevocationList = components['schemas']['RevocationList']
@@ -95,55 +99,18 @@ function ResultCard({
 }
 
 export default function VerifierPage() {
-  const scannerRef = useRef<Html5Qrcode | null>(null)
-  const scannerActiveRef = useRef(false)
-  const [cameraMessage, setCameraMessage] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [qrText, setQrText] = useState('')
   const [result, setResult] = useState<VerificationResult | null>(null)
   const [revoked, setRevoked] = useState(false)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [imageMessage, setImageMessage] = useState<string | null>(null)
+  const [readingImage, setReadingImage] = useState(false)
 
-  async function stopScanner() {
-    scannerActiveRef.current = false
-    const scanner = scannerRef.current
-    scannerRef.current = null
-    if (!scanner) return
-    try {
-      await scanner.stop()
-      scanner.clear()
-    } catch {
-      // The camera may already have stopped after a permission or device error.
-    }
-  }
-
-  useEffect(() => {
-    const scanner = new Html5Qrcode('verifier-qr-reader')
-    scannerRef.current = scanner
-    scannerActiveRef.current = true
-    scanner
-      .start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText) => {
-          if (!scannerActiveRef.current) return
-          setQrText(decodedText)
-          void stopScanner()
-        },
-        () => undefined,
-      )
-      .catch(() => {
-        scannerActiveRef.current = false
-        setCameraMessage('Camera access is unavailable. You can still paste the QR text below.')
-      })
-    return () => {
-      void stopScanner()
-    }
-  }, [])
-
-  async function handleVerify(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault()
-    const text = qrText.trim()
+  const verifyText = useCallback(async (value: string) => {
+    const text = value.trim()
     if (!text) {
       setError('Paste the QR text or scan a credential before verifying.')
       return
@@ -170,14 +137,60 @@ export default function VerifierPage() {
     } finally {
       setChecking(false)
     }
+  }, [])
+
+  const handleDecoded = useCallback(
+    (text: string) => {
+      setQrText(text)
+      setImageMessage(null)
+      void verifyText(text)
+    },
+    [verifyText],
+  )
+
+  const camera = useQrCamera(videoRef, handleDecoded)
+  const { start: startCamera, stop: stopCamera } = camera
+
+  // The camera runs whenever the scan view is showing; it stops itself after a successful decode.
+  useEffect(() => {
+    if (result) return
+    void startCamera()
+    return stopCamera
+  }, [result, startCamera, stopCamera])
+
+  async function handleVerify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await verifyText(qrText)
+  }
+
+  async function handleImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setReadingImage(true)
+    setImageMessage(null)
+    try {
+      const text = await decodeImageFile(file)
+      if (text) {
+        navigator.vibrate?.(80)
+        stopCamera()
+        handleDecoded(text)
+      } else {
+        setImageMessage('No QR code was found in that image. Use a sharp photo where the QR fills most of the picture.')
+      }
+    } catch {
+      setImageMessage('That file could not be read. Choose a PNG or JPG image.')
+    } finally {
+      setReadingImage(false)
+    }
   }
 
   function reset() {
     setResult(null)
     setRevoked(false)
     setError(null)
+    setImageMessage(null)
     setQrText('')
-    setCameraMessage(null)
   }
 
   if (result) {
@@ -189,6 +202,8 @@ export default function VerifierPage() {
     )
   }
 
+  const cameraLive = camera.status === 'scanning' || camera.status === 'starting'
+
   return (
     <section className="mx-auto max-w-lg space-y-6">
       <div>
@@ -196,9 +211,76 @@ export default function VerifierPage() {
         <h1 className="mt-1 text-3xl font-bold text-slate-900">Check a credential</h1>
         <p className="mt-2 text-base text-slate-600">Scan the student&apos;s QR code or paste its text.</p>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-3">
-        <div id="verifier-qr-reader" className="min-h-16" />
-        {cameraMessage && <p className="p-3 text-base text-slate-600">{cameraMessage}</p>}
+      <div className="space-y-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3">
+        <div className={`relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-900 ${cameraLive ? '' : 'hidden'}`}>
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            autoPlay
+            aria-label="Camera preview"
+            className="h-full w-full object-cover"
+          />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="aspect-square h-[85%] rounded-2xl border-4 border-white/80" />
+          </div>
+          <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-slate-900/70 px-3 py-2 text-center text-sm font-semibold text-white">
+            {camera.status === 'starting' ? 'Starting camera…' : 'Hold the QR flat, fill most of the frame'}
+          </p>
+        </div>
+        {checking && <p className="px-1 text-base font-semibold text-slate-700">QR read. Checking…</p>}
+        {camera.error && <p role="status" className="px-1 text-base text-slate-700">{camera.error}</p>}
+        <div className="flex flex-wrap gap-2">
+          {cameraLive ? (
+            <>
+              {camera.torchSupported && (
+                <button
+                  type="button"
+                  onClick={() => void camera.toggleTorch()}
+                  aria-pressed={camera.torchOn}
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                >
+                  {camera.torchOn ? 'Torch off' : 'Torch on'}
+                </button>
+              )}
+              {camera.canSwitchCamera && (
+                <button
+                  type="button"
+                  onClick={camera.switchCamera}
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                >
+                  Switch camera
+                </button>
+              )}
+            </>
+          ) : (
+            !checking && (
+              <button
+                type="button"
+                onClick={() => void startCamera()}
+                className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                {camera.status === 'error' ? 'Try camera again' : 'Start camera'}
+              </button>
+            )
+          )}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={readingImage || checking}
+            className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {readingImage ? 'Reading image…' : 'Scan from image'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            onChange={(event) => void handleImage(event)}
+            className="hidden"
+          />
+        </div>
+        {imageMessage && <p role="alert" className="px-1 text-base text-red-700">{imageMessage}</p>}
       </div>
       <form onSubmit={handleVerify} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
         <label htmlFor="qr-text" className="text-base font-bold text-slate-900">
