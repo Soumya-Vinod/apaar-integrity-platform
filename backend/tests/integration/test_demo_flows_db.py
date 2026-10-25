@@ -145,6 +145,12 @@ def test_post_lock_edit_requests_approve_and_reject(client, world):
         == 409
     )
 
+    decided = {
+        r["id"]: r
+        for r in client.get(
+            "/edit-requests", params={"institution_id": a["id"]}, headers=AICTE
+        ).json()
+    }
     with transaction() as conn:
         actions = {
             r["action"]
@@ -153,6 +159,17 @@ def test_post_lock_edit_requests_approve_and_reject(client, world):
                 ([withdrawal, date_fix, rejected_id, first["id"], window["id"]],),
             ).fetchall()
         }
+        deciders = {
+            r["entity_id"]: r["actor"]
+            for r in conn.execute(
+                "select entity_id, actor from public.audit_events"
+                " where action in ('edit_request.approved', 'edit_request.rejected')"
+                " and entity_id = any(%s)",
+                ([withdrawal, date_fix, rejected_id],),
+            ).fetchall()
+        }
+    for request_id in (withdrawal, date_fix, rejected_id):
+        assert decided[request_id]["decided_by"] == deciders[request_id] == "demo-aicte_admin"
     assert {
         "edit_request.approved",
         "edit_request.rejected",
