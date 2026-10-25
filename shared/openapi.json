@@ -2511,6 +2511,7 @@
           "admissions"
         ],
         "summary": "Create Edit Request",
+        "description": "422 INVALID_EDIT_VALUE when new_value fails the upload rules for its field\n(GET /edit-requests/fields lists the fields and allowed values).",
         "operationId": "create_edit_request_admissions__admission_id__edit_requests_post",
         "parameters": [
           {
@@ -2588,6 +2589,92 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EditRequest"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edit-requests/fields": {
+      "get": {
+        "tags": [
+          "admissions"
+        ],
+        "summary": "List Editable Fields",
+        "description": "Fields an edit request may change, with their type and, for enum fields, the\nallowed values.",
+        "operationId": "list_editable_fields_edit_requests_fields_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Role"
+            }
+          },
+          {
+            "name": "x-demo-institution",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-Institution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EditableField"
+                  },
+                  "title": "Response List Editable Fields Edit Requests Fields Get"
                 }
               }
             }
@@ -7512,6 +7599,45 @@
           "reason"
         ],
         "title": "EditRequestCreate"
+      },
+      "EditableField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "date",
+              "enum",
+              "number",
+              "text"
+            ],
+            "title": "Type"
+          },
+          "allowed_values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Values",
+            "description": "The only values accepted as new_value; set for enum fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "type"
+        ],
+        "title": "EditableField"
       },
       "EncodeRequest": {
         "properties": {
