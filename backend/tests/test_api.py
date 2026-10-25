@@ -40,6 +40,7 @@ GET_ENDPOINTS = [
     ("/students/me/consents", "student"),
     ("/students/me/access-log", "student"),
     ("/edit-requests", "aicte_admin"),
+    ("/edit-requests/fields", "aicte_admin"),
 ]
 
 

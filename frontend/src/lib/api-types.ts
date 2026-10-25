@@ -473,8 +473,33 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Edit Request */
+        /**
+         * Create Edit Request
+         * @description 422 INVALID_EDIT_VALUE when new_value fails the upload rules for its field
+         *     (GET /edit-requests/fields lists the fields and allowed values).
+         */
         post: operations["create_edit_request_admissions__admission_id__edit_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/edit-requests/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Editable Fields
+         * @description Fields an edit request may change, with their type and, for enum fields, the
+         *     allowed values.
+         */
+        get: operations["list_editable_fields_edit_requests_fields_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1858,6 +1883,21 @@ export interface components {
             new_value: string;
             /** Reason */
             reason: string;
+        };
+        /** EditableField */
+        EditableField: {
+            /** Field */
+            field: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "date" | "enum" | "number" | "text";
+            /**
+             * Allowed Values
+             * @description The only values accepted as new_value; set for enum fields
+             */
+            allowed_values?: string[] | null;
         };
         /** EncodeRequest */
         EncodeRequest: {
@@ -3667,6 +3707,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EditRequest"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_editable_fields_edit_requests_fields_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-demo-role"?: string | null;
+                "x-demo-institution"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditableField"][];
                 };
             };
             /** @description Validation Error */

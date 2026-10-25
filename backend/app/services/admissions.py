@@ -3,19 +3,27 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import psycopg
 from fastapi import HTTPException, status
 from psycopg.types.json import Jsonb
 
+from app.core.config import get_settings
+from app.core.rule_codes import RuleCode
 from app.core.security import scoped_institution
 from app.models.auth import User
 from app.services import audit_store
 from app.services import submission_windows as windows
 from app.services.batches import Event, as_uuid
-from app.services.validation import mask_apaar
+from app.services.ingestion import normalize_row
+from app.services.validation import (
+    ADMISSION_MODES,
+    ValidationContext,
+    check_row,
+    mask_apaar,
+)
 
 MAX_LIMIT = 200
 
@@ -39,6 +47,66 @@ EDITABLE = {
 }
 # Not a column: approving an edit request for this field withdraws the admission.
 WITHDRAWAL = "withdrawal"
+# What GET /edit-requests/fields reports for each field: its type and, if enumerated,
+# the allowed values.
+FIELD_TYPES = {
+    "admission_date": "date",
+    "admission_mode": "enum",
+    "qualifying_exam_pct": "number",
+    "student_name": "text",
+    "dob": "date",
+    WITHDRAWAL: "enum",
+}
+ALLOWED_VALUES: dict[str, tuple[str, ...]] = {
+    "admission_mode": ADMISSION_MODES,
+    WITHDRAWAL: ("withdrawn",),
+}
+INVALID_EDIT_VALUE = "INVALID_EDIT_VALUE"
+# Upload warnings that still block an edit request; every upload error blocks one.
+_BLOCKING_WARNINGS = {RuleCode.ADMISSION_AFTER_CUTOFF}
+
+
+def editable_fields() -> list[dict[str, Any]]:
+    return [
+        {
+            "field": name,
+            "type": kind,
+            "allowed_values": list(ALLOWED_VALUES[name]) if name in ALLOWED_VALUES else None,
+        }
+        for name, kind in FIELD_TYPES.items()
+    ]
+
+
+def _invalid_edit(field: str, message: str) -> HTTPException:
+    detail: dict[str, Any] = {"code": INVALID_EDIT_VALUE, "field": field, "message": message}
+    if field in ALLOWED_VALUES:
+        detail["allowed_values"] = list(ALLOWED_VALUES[field])
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail)
+
+
+def check_edit_value(field: str, new_value: str, cutoff: date) -> str:
+    """Check new_value with the upload rules for its field; returns it as it will be stored.
+
+    Raises 422 INVALID_EDIT_VALUE so a request that could never be applied is not filed.
+    """
+    if field not in FIELD_TYPES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, f"field must be one of {sorted(FIELD_TYPES)}"
+        )
+    if field == WITHDRAWAL:
+        if new_value.strip().lower() != "withdrawn":
+            raise _invalid_edit(field, "new_value for withdrawal must be 'withdrawn'.")
+        return "withdrawn"
+    row = normalize_row({field: new_value}, {field: field}, 1, secret="")
+    ctx = ValidationContext(cutoff=cutoff, run_engine_hooks=False)
+    for finding in check_row(row, ctx):
+        if finding.rule_code in _BLOCKING_WARNINGS:
+            message = f"{field} must be on or before the admission cut-off {cutoff.isoformat()}."
+            raise _invalid_edit(field, message)
+        if finding.severity == "error" and finding.evidence.get("field") == field:
+            raise _invalid_edit(field, finding.message)
+    value = row.values[field]
+    return value.isoformat() if isinstance(value, date) else str(value)
 
 
 def _admission(row: dict[str, Any]) -> dict[str, Any]:
@@ -162,11 +230,9 @@ def list_edit_requests(
 def create_edit_request(
     conn: psycopg.Connection, admission_id: str, body: dict[str, str], user: User
 ) -> dict[str, Any]:
-    if body["field"] not in EDITABLE and body["field"] != WITHDRAWAL:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            f"field must be one of {sorted([*EDITABLE, WITHDRAWAL])}",
-        )
+    new_value = check_edit_value(
+        body["field"], body["new_value"], get_settings().admission_cutoff_date
+    )
     admission = _load_admission(conn, admission_id, user)
     if not admission["active"]:
         raise HTTPException(status.HTTP_409_CONFLICT, "Admission is withdrawn")
@@ -183,7 +249,7 @@ def create_edit_request(
             admission_id,
             body["field"],
             None if old is None else str(old),
-            body["new_value"],
+            new_value,
             body["reason"],
             actor,
         ),

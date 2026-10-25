@@ -5,12 +5,14 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
+from app.core.config import Settings, get_settings
 from app.core.datasource import source
 from app.core.db import transaction
 from app.core.security import require_roles, scoped_institution
 from app.mocks import mock, not_found
 from app.models.admissions import (
     Admission,
+    EditableField,
     EditDecision,
     EditRequest,
     EditRequestCreate,
@@ -75,25 +77,36 @@ def create_edit_request(
     body: EditRequestCreate,
     user: User = Depends(EDITORS),
     real: bool = Depends(REAL),
+    settings: Settings = Depends(get_settings),
 ) -> dict:
+    """422 INVALID_EDIT_VALUE when new_value fails the upload rules for its field
+    (GET /edit-requests/fields lists the fields and allowed values)."""
     if real:
         with transaction() as conn:
             return service.create_edit_request(conn, admission_id, body.model_dump(), user)
     admission = next((a for a in mock("admissions") if a["id"] == admission_id), None)
     if admission is None:
         raise not_found("Admission", admission_id)
+    new_value = service.check_edit_value(body.field, body.new_value, settings.admission_cutoff_date)
     request = mock("edit_requests")[0]
     old = admission.get(body.field)
     request.update(
         admission_id=admission_id,
         field=body.field,
         old_value=None if old is None else str(old),
-        new_value=body.new_value,
+        new_value=new_value,
         reason=body.reason,
         requested_by=user.id,
         created_at=datetime.now(UTC).isoformat(),
     )
     return request
+
+
+@router.get("/edit-requests/fields", response_model=list[EditableField])
+def list_editable_fields(user: User = Depends(READERS)) -> list[dict]:
+    """Fields an edit request may change, with their type and, for enum fields, the
+    allowed values."""
+    return service.editable_fields()
 
 
 @router.get("/edit-requests", response_model=list[EditRequest])
