@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from engine.config import SHARED_CONTACT_THRESHOLD
 from engine.signals.backdated import _parse_date, backdated_signal
 from engine.signals.eligibility import eligibility_signal
 from engine.signals.shared_contacts import shared_contacts_signal
@@ -74,9 +75,13 @@ def eligibility(admissions: list[Row]) -> list[Signal]:
     return eligibility_signal(admissions)
 
 
-def shared_contact_clusters(admissions: list[Row], min_size: int = 5) -> list[Signal]:
+def shared_contact_clusters(
+    admissions: list[Row], min_size: int = SHARED_CONTACT_THRESHOLD
+) -> list[Signal]:
     """Flag clusters of students sharing the same hashed phone or email."""
-    return shared_contacts_signal(admissions, min_cluster_size=min_size)
+    return shared_contacts_signal(
+        admissions, min_cluster_size=min_size, cross_institution_min=min_size
+    )
 
 
 def backdating(admissions: list[Row]) -> list[Signal]:
@@ -168,3 +173,6 @@ def backdating(admissions: list[Row]) -> list[Signal]:
 def cap_filling(admissions: list[Row], seat_pools: list[Row]) -> list[Signal]:
     """Flag pools filled beyond approved intake."""
     return eligibility_signal(admissions, seat_pools=seat_pools)
+
+
+intake_overrun = cap_filling

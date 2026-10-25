@@ -7,6 +7,8 @@ import os
 
 MATCH_THRESHOLD: float = float(os.getenv("MATCH_THRESHOLD", "0.85"))
 MODEL_VERSION: str = os.getenv("MODEL_VERSION", "0.1.0")
+SHARED_CONTACT_THRESHOLD: int = int(os.getenv("SHARED_CONTACT_THRESHOLD", "5"))
+BLOOM_BITS: int = int(os.getenv("BLOOM_BITS", "1024"))
 
 # Anomaly detection configuration
 ANOMALY_CONTAMINATION: float = float(os.getenv("ANOMALY_CONTAMINATION", "0.1"))

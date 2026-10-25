@@ -266,7 +266,7 @@ class InstitutionFeatureExtractor:
 
         # 5. Backdated admission rate
         # Matches the per-row BACKDATED_ENTRY rule (engine.signals.rules.backdating):
-        # flags admissions dated before the July–September window (before July 1) or entered with delay > 180 days.
+        # flags admissions dated before July 1 or entered with delay > 180 days.
         backdated_count = 0
         for a in inst_admissions:
             adm_date = a.get("admission_date")
