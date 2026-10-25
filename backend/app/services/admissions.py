@@ -171,6 +171,8 @@ def create_edit_request(
     if not admission["active"]:
         raise HTTPException(status.HTTP_409_CONFLICT, "Admission is withdrawn")
     old = admission["status"] if body["field"] == WITHDRAWAL else admission.get(body["field"])
+    # requested_by holds the same actor string as the audit event, demo actors included.
+    actor = user.id
     row = conn.execute(
         """
         insert into public.edit_requests
@@ -183,12 +185,12 @@ def create_edit_request(
             None if old is None else str(old),
             body["new_value"],
             body["reason"],
-            as_uuid(user.id),
+            actor,
         ),
     ).fetchone()
     audit_store.append_event(
         conn,
-        user.id,
+        actor,
         "edit_request.created",
         "edit_request",
         row["id"],
@@ -235,17 +237,19 @@ def decide_edit_request(
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT, "new_value is not valid for this field"
             ) from exc
+    # decided_by holds the same actor string as the audit event, demo actors included.
+    actor = user.id
     row = conn.execute(
         """
         update public.edit_requests
         set status = %s, decided_by = %s, decision_note = %s, decided_at = now()
         where id = %s returning *
         """,
-        (decision, as_uuid(user.id), note, edit_request_id),
+        (decision, actor, note, edit_request_id),
     ).fetchone()
     audit_store.append_event(
         conn,
-        user.id,
+        actor,
         f"edit_request.{decision}",
         "edit_request",
         row["id"],
