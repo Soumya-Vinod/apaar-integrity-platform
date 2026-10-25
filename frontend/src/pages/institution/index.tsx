@@ -3,8 +3,9 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
 import { api } from "../../lib/api";
-import { ROLE_LABELS, actionHint, useIdentity } from "../../lib/roles";
+import { actionHint, useIdentity } from "../../lib/roles";
 import ErrorAlert from "../../components/ErrorAlert";
+import RoleBadge from "../../components/RoleBadge";
 import UploadWizard from "./UploadWizard";
 import StudentRegistry from "./StudentRegistry";
 import PostLockEditRequests from "./PostLockEditRequests";
@@ -457,12 +458,7 @@ export default function InstitutionPage() {
             <p className="text-sm font-medium text-indigo-700">
               Institution Portal
             </p>
-            <span
-              data-testid="role-badge"
-              className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-800"
-            >
-              Signed in as {ROLE_LABELS[role]}
-            </span>
+            <RoleBadge />
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">
             Seat Ledger

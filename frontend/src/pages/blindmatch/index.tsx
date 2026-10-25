@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useIdentity } from "../../lib/roles";
+import RoleBadge from "../../components/RoleBadge";
 import type { components } from "../../lib/api-types";
 
 type BlindMatchCase = components["schemas"]["BlindMatchCase"];
@@ -135,6 +136,7 @@ export default function BlindMatchPage() {
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               Blind Match
             </h1>
+            <RoleBadge className="mt-3 inline-block" />
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
               Explore potential cross-institution identity matches using

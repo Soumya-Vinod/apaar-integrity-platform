@@ -8,6 +8,7 @@ import type { Topology } from 'topojson-specification'
 import { API_URL, ApiError } from '../../lib/api'
 import type { components } from '../../lib/api-types'
 import { getIdentity } from '../../lib/roles'
+import RoleBadge from '../../components/RoleBadge'
 import IndiaMap from './IndiaMap'
 import './map.css'
 import StatePanel from './StatePanel'
@@ -100,7 +101,10 @@ export default function MapPage() {
     <div className="space-y-8 pb-8">
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">State map</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">State map</p>
+            <RoleBadge />
+          </div>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
             Admissions across India
           </h1>
