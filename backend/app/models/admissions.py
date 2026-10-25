@@ -59,6 +59,14 @@ class EditRequest(BaseModel):
 EditRequestStatus = Literal["pending", "approved", "rejected"]
 
 
+class EditableField(BaseModel):
+    field: str
+    type: Literal["date", "enum", "number", "text"]
+    allowed_values: list[str] | None = Field(
+        None, description="The only values accepted as new_value; set for enum fields"
+    )
+
+
 class EditDecision(BaseModel):
     decision: Literal["approved", "rejected"]
     note: str | None = None
