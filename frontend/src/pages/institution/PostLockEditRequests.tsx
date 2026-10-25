@@ -1,21 +1,34 @@
-
+// Owner: Dev D
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../lib/api-types";
 import { api } from "../../lib/api";
+import ErrorAlert from "../../components/ErrorAlert";
+import { actorLabel } from "../../components/format";
 
 type Admission = components["schemas"]["Admission"];
 type EditRequest = components["schemas"]["EditRequest"];
 type EditRequestCreate = components["schemas"]["EditRequestCreate"];
+type EditableField = components["schemas"]["EditableField"];
 
-const fields = [
-  { value: "admission_date", label: "Admission date" },
-  { value: "admission_mode", label: "Admission mode" },
-  { value: "qualifying_exam_pct", label: "Qualifying exam percentage" },
-  { value: "student_name", label: "Student name" },
-  { value: "dob", label: "Date of birth" },
-  { value: "withdrawal", label: "Withdrawal" },
-] as const;
+// Display names only; which fields exist, their types and allowed values come from
+// GET /edit-requests/fields.
+const fieldLabels: Record<string, string> = {
+  admission_date: "Admission date",
+  admission_mode: "Admission mode",
+  qualifying_exam_pct: "Qualifying exam percentage",
+  student_name: "Student name",
+  dob: "Date of birth",
+  withdrawal: "Withdrawal",
+};
+
+function fieldLabel(name: string): string {
+  const label = fieldLabels[name] ?? name.replaceAll("_", " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+const input =
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 
 const statusStyles: Record<EditRequest["status"], string> = {
   pending: "bg-amber-100 text-amber-800",
@@ -35,11 +48,20 @@ export default function PostLockEditRequests({
   const queryClient = useQueryClient();
 
   const [admissionId, setAdmissionId] = useState("");
-  const [field, setField] =
-    useState<(typeof fields)[number]["value"]>("admission_date");
+  const [selectedField, setSelectedField] = useState("");
   const [newValue, setNewValue] = useState("");
   const [reason, setReason] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+
+  const fieldsQuery = useQuery({
+    queryKey: ["edit-request-fields"],
+    queryFn: () => api<EditableField[]>("/edit-requests/fields"),
+    staleTime: Infinity,
+  });
+
+  const fields = fieldsQuery.data ?? [];
+  const field = selectedField || fields[0]?.field || "";
+  const fieldSpec = fields.find((item) => item.field === field);
 
   const admissionsQuery = useQuery({
     queryKey: ["edit-request-admissions", institutionId, academicYear],
@@ -104,15 +126,11 @@ export default function PostLockEditRequests({
   function submitRequest(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!admissionId || !newValue.trim() || !reason.trim()) return;
+    if (!admissionId || !field || !newValue.trim() || !reason.trim()) return;
 
     createMutation.mutate({
       admissionId,
-      body: {
-        field,
-        new_value: field === "withdrawal" ? "withdrawn" : newValue.trim(),
-        reason: reason.trim(),
-      },
+      body: { field, new_value: newValue.trim(), reason: reason.trim() },
     });
   }
 
@@ -173,53 +191,85 @@ export default function PostLockEditRequests({
           </label>
         )}
 
-        <label className="block space-y-1">
-          <span className="text-sm font-medium text-slate-700">
-            Field to change
-          </span>
-          <select
-            value={field}
-            onChange={(event) => {
-              setField(event.target.value as (typeof fields)[number]["value"]);
-              setNewValue("");
-            }}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-          >
-            {fields.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {fieldsQuery.isError ? (
+          <ErrorAlert
+            action="Loading the editable fields"
+            error={fieldsQuery.error}
+          />
+        ) : (
+          <label className="block space-y-1">
+            <span className="text-sm font-medium text-slate-700">
+              Field to change
+            </span>
+            <select
+              value={field}
+              disabled={fieldsQuery.isPending}
+              onChange={(event) => {
+                setSelectedField(event.target.value);
+                setNewValue("");
+              }}
+              className={input}
+            >
+              {fieldsQuery.isPending && (
+                <option value="">Loading fields…</option>
+              )}
+              {fields.map((item) => (
+                <option key={item.field} value={item.field}>
+                  {fieldLabel(item.field)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
-        {field === "withdrawal" ? (
+        {field === "withdrawal" && (
           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
             This requests withdrawal of the admission. If approved, the
             backend will process the withdrawal and release the seat.
           </p>
-        ) : (
+        )}
+
+        {fieldSpec && (
           <label className="block space-y-1">
             <span className="text-sm font-medium text-slate-700">
               Proposed value
             </span>
-            <input
-              required
-              value={newValue}
-              onChange={(event) => setNewValue(event.target.value)}
-              type={
-                field === "admission_date" || field === "dob"
-                  ? "date"
-                  : field === "qualifying_exam_pct"
-                    ? "number"
-                    : "text"
-              }
-              min={field === "qualifying_exam_pct" ? 0 : undefined}
-              max={field === "qualifying_exam_pct" ? 100 : undefined}
-              step={field === "qualifying_exam_pct" ? "any" : undefined}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Enter the corrected value"
-            />
+            {fieldSpec.type === "enum" ? (
+              <select
+                required
+                value={newValue}
+                onChange={(event) => setNewValue(event.target.value)}
+                className={input}
+              >
+                <option value="">Select a value</option>
+                {(fieldSpec.allowed_values ?? []).map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                required
+                value={newValue}
+                onChange={(event) => setNewValue(event.target.value)}
+                type={
+                  fieldSpec.type === "date"
+                    ? "date"
+                    : fieldSpec.type === "number"
+                      ? "number"
+                      : "text"
+                }
+                step={fieldSpec.type === "number" ? "any" : undefined}
+                className={input}
+                placeholder="Enter the corrected value"
+              />
+            )}
+            {fieldSpec.type === "enum" && fieldSpec.allowed_values && (
+              <span className="block text-xs text-slate-500">
+                Allowed values: {fieldSpec.allowed_values.join(", ")}
+              </span>
+            )}
           </label>
         )}
 
@@ -239,11 +289,10 @@ export default function PostLockEditRequests({
         </label>
 
         {createMutation.isError && (
-          <p role="alert" className="text-sm text-red-700">
-            Request failed. The submission window may not be locked, or the
-            server may have rejected the request. Check the API response and
-            try again if appropriate.
-          </p>
+          <ErrorAlert
+            action="Submitting the edit request"
+            error={createMutation.error}
+          />
         )}
 
         {createMutation.isSuccess && (
@@ -257,8 +306,9 @@ export default function PostLockEditRequests({
           disabled={
             createMutation.isPending ||
             !admissionId ||
+            !field ||
             !reason.trim() ||
-            (field !== "withdrawal" && !newValue.trim())
+            !newValue.trim()
           }
           className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -304,12 +354,15 @@ export default function PostLockEditRequests({
             Loading edit requests…
           </p>
         ) : requestsQuery.isError ? (
-          <div className="rounded-lg bg-red-50 p-4 text-sm text-red-800">
-            Could not load edit requests.
+          <div className="space-y-2">
+            <ErrorAlert
+              action="Loading edit requests"
+              error={requestsQuery.error}
+            />
             <button
               type="button"
               onClick={() => void requestsQuery.refetch()}
-              className="ml-2 underline"
+              className="text-sm text-red-800 underline"
             >
               Retry
             </button>
@@ -328,7 +381,8 @@ export default function PostLockEditRequests({
                   <th className="px-3 py-3">Proposed value</th>
                   <th className="px-3 py-3">Reason</th>
                   <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3">Requested</th>
+                  <th className="px-3 py-3">Requested by</th>
+                  <th className="px-3 py-3">Decided by</th>
                   <th className="px-3 py-3">Decision note</th>
                 </tr>
               </thead>
@@ -344,10 +398,16 @@ export default function PostLockEditRequests({
                       </p>
                     </td>
                     <td className="px-3 py-3">
-                      {fields.find((item) => item.value === request.field)
-                        ?.label ?? request.field}
+                      {fieldLabel(request.field)}
                     </td>
-                    <td className="px-3 py-3">{request.new_value}</td>
+                    <td className="px-3 py-3">
+                      {request.old_value != null && (
+                        <span className="text-slate-500">
+                          {request.old_value} →{" "}
+                        </span>
+                      )}
+                      <span className="font-medium">{request.new_value}</span>
+                    </td>
                     <td className="max-w-64 whitespace-normal px-3 py-3">
                       {request.reason}
                     </td>
@@ -358,8 +418,19 @@ export default function PostLockEditRequests({
                         {request.status}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">
-                      {new Date(request.created_at).toLocaleDateString()}
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <p>{actorLabel(request.requested_by)}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {new Date(request.created_at).toLocaleDateString()}
+                      </p>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <p>{actorLabel(request.decided_by)}</p>
+                      {request.decided_at && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          {new Date(request.decided_at).toLocaleDateString()}
+                        </p>
+                      )}
                     </td>
                     <td className="px-3 py-3">
                       {request.decision_note || "—"}
