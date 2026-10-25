@@ -429,19 +429,6 @@ export default function InstitutionPage() {
         />
       </div>
 
-      <StudentRegistry
-        institutionId={institutionId}
-        academicYear={academicYear}
-      />
-      <UploadWizard institutionId={institutionId} />
-
-      <BatchHistory institutionId={institutionId} />
-
-      <PostLockEditRequests
-        institutionId={institutionId}
-        academicYear={academicYear}
-      />
-
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -560,10 +547,23 @@ export default function InstitutionPage() {
         )}
       </div>
 
-      <p className="text-xs text-slate-400">
+      <p className="-mt-3 text-xs text-slate-400">
         Figures reflect the seat-ledger API response. Availability is summed
         from pool-level values; this page does not recalculate server rules.
       </p>
+
+      <StudentRegistry
+        institutionId={institutionId}
+        academicYear={academicYear}
+      />
+      <UploadWizard institutionId={institutionId} />
+
+      <BatchHistory institutionId={institutionId} />
+
+      <PostLockEditRequests
+        institutionId={institutionId}
+        academicYear={academicYear}
+      />
     </section>
   );
 }
