@@ -1,26 +1,26 @@
-# Feature F24 Evaluation Report: Black-Box Production Engine Benchmark
+# Feature F24 Evaluation Report: Black-Box Production Benchmark
 
 ## 1. Executive Summary
 
-This report documents the scientifically defensible, end-to-end evaluation of the actual **production engine** for the APAAR Integrity Platform (Feature F24). 
+This report documents the end-to-end evaluation of the actual **live production paths** and **engine reference implementations** for the APAAR Integrity Platform (Feature F24).
 
 The evaluation pipeline is architected as a strict **black-box evaluator**:
 ```
 Synthetic Dataset (admissions.csv, intake.csv)
        ↓
-Production Engine Components (rules, ledger checks, BlindMatchService)
+Production Components (Live Backend Paths & Engine Reference Rules)
        ↓
-Production Signals & Review Cases
+Production Signals & Review Cases (predictions sealed in memory)
        ↓
-Ground Truth (loaded strictly AFTER predictions are sealed)
+Ground Truth (ground_truth.csv loaded ONLY after predictions are sealed)
        ↓
 Precision / Recall / F1 & Micro/Macro Aggregates
 ```
 
-The evaluator contains **zero duplicate detection logic**, **zero hardcoded benchmark parameters**, and maintains **absolute ground-truth isolation** (predictions are finalized and sealed before `ground_truth.csv` is read).
+The evaluator contains **zero duplicate detection logic**, **zero hardcoded benchmark parameters**, and maintains **absolute ground-truth isolation** (predictions are finalized and sealed before `ground_truth.csv` is accessed).
 
 > [!IMPORTANT]
-> **Defensible Benchmark Scope:** This benchmark measures the algorithmic performance of the production engine against a controlled, deterministic synthetic dataset (`seed=42`, 25 institutions, 5,063 student admissions, 396 seat pools). It does **NOT** claim real-world operational accuracy. In real-world national deployments, unmodeled data drift, varying institutional naming standards, OCR artifacts, and missing guardian data will naturally affect precision and recall.
+> **Deterministic Benchmark Scope:** This benchmark measures the algorithmic performance of the live production system and engine reference implementations against a deterministic synthetic dataset (`seed=42`, 25 institutions, 5,063 student admissions, 396 seat pools). It does **NOT** claim real-world operational accuracy. In real-world national deployments, unmodeled data drift, varying institutional naming standards, OCR artifacts, and missing guardian data will naturally affect precision and recall.
 
 ---
 
@@ -40,96 +40,95 @@ The evaluator contains **zero duplicate detection logic**, **zero hardcoded benc
 
 ---
 
-## 3. Production Engine Components & Configuration
+## 3. Production Component Mapping: Live Backend vs. Engine Reference
 
-The evaluation pipeline invokes the identical components and default configurations used in production:
+To ensure scientific precision, this benchmark distinguishes between what runs in the live backend service and the engine reference implementations:
 
-| Target Signal | Production Component Module | Invoked Function / Class | Configuration Source & Default Values |
+| Anomaly / Signal Type | Live Production Backend Path | Engine Reference Implementation | Evaluated Granularity |
 | :--- | :--- | :--- | :--- |
-| `intake_overrun` | `engine.signals.rules` | `cap_filling(admissions, seat_pools)` | Verified against `intake.csv` approved pool seats |
-| `shared_contact_cluster` | `engine.signals.rules` | `shared_contact_clusters(admissions)` | `SHARED_CONTACT_THRESHOLD = 5` (`engine.config`) |
-| `backdated_entry` | `engine.signals.rules` | `backdating(admissions)` | AICTE calendar window (July 1 cutoff, max delay 180d) |
-| `dup_cross_institution` | `engine.blind_match.service` | `find_exact_apaar_duplicates(students)` | Exact 12-digit APAAR ID cross-institution matching |
-| `typo_duplicate` (Blind Match) | `engine.blind_match.service` | `BlindMatchService.run_blind_match(students)` | `BirthYearBlocking` (`YYYY`), `MATCH_THRESHOLD = 0.85`, Bloom filter bits = 1024, $k = 20$ |
+| `intake_overrun` | **Seat Ledger** (`backend/app/services/batches.py`): tracks committed pool seats vs approved intake | `cap_filling(admissions, seat_pools)` (`engine.signals.rules`) | Pool-level (`inst\|prog\|year\|pool`) |
+| `shared_contact_cluster` | **Validation Rule** (`backend/app/services/validation.py`): clusters on contact hashes with `threshold = 5` | `shared_contact_clusters(admissions, min_size=5)` (`engine.signals.rules`) | Record-level (`record_id`) |
+| `backdated_entry` | **Upload Hook** (`backend/app/services/validation.py`): directly calls `rules.backdating(rows)` | `backdating(admissions)` (`engine.signals.rules`) | Record-level (`record_id`) |
+| `dup_cross_institution` | **Validation Rule** (`backend/app/services/validation.py`): checks active cross-institution enrollments | `find_exact_apaar_duplicates(students)` (`engine.blind_match.service`) | Pair-level $(u, v)$ |
+| `typo_duplicate` | **Live Blind Match** (`backend/app/services/blind_match.py`): HMAC full DOB blocking, `bits=1024`, `dice` $\ge 0.85$ | `BlindMatchService` (`engine.blind_match.service`) with `BirthYearBlocking` (`YYYY`) | Pair-level $(u, v)$ |
 
 ---
 
-## 4. Evaluation Methodology & Granularity
+## 4. Benchmark Performance Metrics Breakdown
 
-1. **Strict Ground-Truth Isolation:**
-   - Admissions and intake files are loaded into memory.
-   - The production engine processes the data and generates predictions (signals and review cases).
-   - Only after all predictions are sealed into prediction sets is `ground_truth.csv` opened.
-   - Predictions are compared directly with ground-truth labels to compute confusion matrices.
+### Pipeline A: Headline Live Backend Production Path (Full DOB HMAC Blocking)
 
-2. **Entity-Resolution Evaluation Granularity:**
-   - **Pool-Level Evaluation:** `intake_overrun` is evaluated at the seat-pool granularity using the canonical tuple key `institution_aicte_code|programme_code|academic_year|seat_pool`.
-   - **Record-Level Evaluation:** `backdated_entry` and `shared_contact_cluster` are evaluated at the student admission record level (`record_id`).
-   - **Pair-Level Evaluation:** In accordance with established Entity Resolution (ER) / Record Linkage scientific standards, `dup_cross_institution` and `typo_duplicate` are evaluated on unordered record pairs $(u, v)$ where $u \ne v$. A prediction is counted as a True Positive (TP) if and only if the exact predicted pair matches the planted ground-truth pair.
+The headline live production system blocks on a keyed HMAC of the full normalized date of birth (`dob_block_key`), compares only across different institutions, skips pairs with matching APAAR/provisional IDs, and scores via `encode_identity(bits=1024)` + `dice` with `MATCH_THRESHOLD = 0.85`.
 
----
-
-## 5. Performance Metrics Breakdown
-
-### Pipeline A: Production Engine (with Privacy-Preserving Blind Match)
-
-| Signal / Anomaly Type | Evaluation Level | Support | TP | FP | FN | Precision | Recall | F1-Score |
+| Signal / Anomaly Type | Component Path | Support | TP | FP | FN | Precision | Recall | F1-Score |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| `shared_contact_cluster` | Record-level | 16 | 16 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
-| `backdated_entry` | Record-level | 16 | 16 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
-| `typo_duplicate` | Pair-level | 12 | 12 | 1 | 0 | **0.9231** | **1.0000** | **0.9600** |
-| `dup_cross_institution` | Pair-level | 10 | 10 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
-| `intake_overrun` | Pool-level | 3 | 3 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
-| **Micro Summary** | — | **57** | **57** | **1** | **0** | **0.9828** | **1.0000** | **0.9913** |
-| **Macro Summary** | — | **57** | — | — | — | **0.9846** | **1.0000** | **0.9920** |
-
-- **Micro Precision:** $57 / (57 + 1) = 0.9828$
-- **Micro Recall:** $57 / (57 + 0) = 1.0000$
-- **Micro F1-Score:** $0.9913$
-- **Macro Precision:** $0.9846$
-- **Macro Recall:** $1.0000$
-- **Macro F1-Score:** $0.9920$
+| `shared_contact_cluster` | Live Backend Validation Rule | 16 | 16 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
+| `backdated_entry` | Live Backend Hook (`rules.backdating`) | 16 | 16 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
+| `typo_duplicate` | **Live Backend Blind Match (Full DOB)** | 12 | 12 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
+| `dup_cross_institution` | Live Backend Validation Rule | 10 | 10 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
+| `intake_overrun` | Live Backend Seat Ledger | 3 | 3 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
+| **Headline Micro Summary** | — | **57** | **57** | **0** | **0** | **1.0000** | **1.0000** | **1.0000** |
+| **Headline Macro Summary** | — | **57** | — | — | — | **1.0000** | **1.0000** | **1.0000** |
 
 ---
 
-### Pipeline B: Plain-Text Fuzzy Matching Baseline (Exact DOB Blocking)
+### Pipeline B: Comparative Engine Reference Run (Birth-Year Blocking)
 
-| Signal / Anomaly Type | Evaluation Level | Support | TP | FP | FN | Precision | Recall | F1-Score |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| `shared_contact_cluster` | Record-level | 16 | 16 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
-| `backdated_entry` | Record-level | 16 | 16 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
-| `typo_duplicate` | Pair-level | 12 | 12 | 1 | 0 | **0.9231** | **1.0000** | **0.9600** |
-| `dup_cross_institution` | Pair-level | 10 | 10 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
-| `intake_overrun` | Pool-level | 3 | 3 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** |
-| **Micro Summary** | — | **57** | **57** | **1** | **0** | **0.9828** | **1.0000** | **0.9913** |
-| **Macro Summary** | — | **57** | — | — | — | **0.9846** | **1.0000** | **0.9920** |
+This comparative run evaluates the engine reference implementation using `BirthYearBlocking` (`YYYY`) from `engine/src/engine/blind_match/linkage.py`.
 
----
-
-## 6. Analysis of Metric Shifts: Why Blind Match Precision is 92.31%
-
-In earlier evaluation iterations, Blind Match was reported with 100% precision ($12/12$, $FP = 0$). That result was an artifact of an evaluation shortcut: the old pipeline utilized **Full DOB blocking** (`YYYY-MM-DD`), preventing students born in different months from ever being compared.
-
-In contrast, the actual production engine implements **`BirthYearBlocking`** (`YYYY`) in `engine/src/engine/blind_match/linkage.py`:
-1. **The Coincidental Match:** Records `R0002917` ("Ijaya Aggarwal", DOB: `2007-11-22` at `1-9900015`) and `R0004971` ("Ijaya Aggarwal", DOB: `2007-12-23` at `1-9900025`) share the same 2007 birth year block.
-2. **Dice Similarity Score:** Because both records share identical student names and guardian tokens, their Bloom filter Dice similarity computes to **0.8531**, exceeding the production `MATCH_THRESHOLD = 0.85`.
-3. **Scientific Defense:** The production engine correctly flags this candidate pair for human review under AICTE integrity procedures. Rather than masking this case with non-production DOB blocking, evaluating the true production engine transparently surfaces this 1 False Positive, yielding a defensible Precision of **92.31%** and F1-Score of **0.9600** with **100% Recall**.
+| Signal / Anomaly Type | Component Path | Support | TP | FP | FN | Precision | Recall | F1-Score | Note |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| `shared_contact_cluster` | Engine Reference | 16 | 16 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** | Cluster size $\ge 5$ |
+| `backdated_entry` | Engine Reference | 16 | 16 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** | AICTE window rules |
+| `typo_duplicate` | **Engine Blind Match (`BirthYearBlocking`)** | 12 | 12 | 1 | 0 | **0.9231** | **1.0000** | **0.9600** | **1 FP (two Ijaya Aggarwals, different DOB)** |
+| `dup_cross_institution` | Engine Reference | 10 | 10 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** | Exact APAAR detector |
+| `intake_overrun` | Engine Reference (`cap_filling`) | 3 | 3 | 0 | 0 | **1.0000** | **1.0000** | **1.0000** | Pool capacity rules |
+| **Engine Micro Summary** | — | **57** | **57** | **1** | **0** | **0.9828** | **1.0000** | **0.9913** | |
+| **Engine Macro Summary** | — | **57** | — | — | — | **0.9846** | **1.0000** | **0.9920** | |
 
 ---
 
-## 7. Benchmark Limitations & Real-World Generalization
+### Pipeline C: Plain-Text Fuzzy Matching Baseline (Exact DOB Blocking)
 
-While this benchmark establishes verifiable internal validity, several limitations must be acknowledged for SIH judging and peer review:
+Evaluates unencrypted pairwise RapidFuzz string ratio on normalized student names within identical birth date blocks.
 
-1. **Synthetic Noise vs. Real-World Variance:** The dataset uses controlled typographical errors (single transposition, deletion, or insertion) generated by `datagen`. Real admission data exhibits multi-word phonetic variations, honorific prefixes ("Shri", "Kumari"), missing guardian names, and transliteration differences between Indic scripts and English.
-2. **Birth-Year Block Density:** In a synthetic dataset of 5,000 students across 25 institutions, birth-year blocks contain approximately 200–400 students. In a national deployment containing millions of records, year-based blocking would require sub-blocking (e.g., Soundex of first name + birth year) to remain computationally tractable within sub-second upload windows.
-3. **Deterministic Timelines:** Datagen's backdated entries are uniformly dated prior to July 1. In production, admission cutoffs vary by state authority and extended counseling rounds (e.g., institutional spot rounds).
+| Signal / Anomaly Type | Component Path | Support | TP | FP | FN | Precision | Recall | F1-Score | Note |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| `typo_duplicate` | Plain-Text RapidFuzz | 12 | 12 | 1 | 0 | **0.9231** | **1.0000** | **0.9600** | 1 FP: `Eta Banerjee` vs `Neha Banerjee` |
 
 ---
 
-## 8. Reproducibility Instructions
+## 5. Architectural Slide Point: Why Live Production Blocks on Full DOB
 
-To reproduce these metrics from a clean checkout:
+Comparing Pipeline A (Live Backend Full DOB) against Pipeline B (Engine Birth-Year Blocking) provides a crucial engineering insight for SIH judging:
+
+1. **Why Full DOB Blocking in Live Production?**
+   - In birth-year blocking (`YYYY`), every student born in a given year is compared against every other student born that year across all institutions.
+   - In the benchmark dataset, records `R0002917` ("Ijaya Aggarwal", born `2007-11-22` at `1-9900015`) and `R0004971` ("Ijaya Aggarwal", born `2007-12-23` at `1-9900025`) share the 2007 birth year block. With identical student names and guardian tokens, their Bloom filter Dice score is **0.8531** ($\ge 0.85$), triggering **1 False Positive** and lowering precision to **92.31%**.
+   - By blocking on the **keyed HMAC of the full normalized date of birth** (`dob_block_key`), the live backend ensures students born in different months are never co-blocked. This eliminates coincidental name collisions across birth cohorts, achieving **100% precision (0 FP)** in the live system.
+
+2. **Architectural Trade-Off & Limitation:**
+   - **DOB Typo Vulnerability:** Because the live backend blocks strictly on the full normalized DOB, any typographical error planted in the date of birth itself (e.g. `2004-05-12` vs `2004-05-13`) places the two records into distinct HMAC blocks. Such pairs escape Blind Match detection unless supplementary blocking keys (e.g., soundex of name + birth year) are deployed.
+
+---
+
+## 6. Verification of Live Behaviors
+
+### 1. `rules.eligibility` Hook Form
+The engine hook contract (`shared/engine-hooks.md`) specifies that when `rules.eligibility` is invoked during batch upload validation, it receives row dicts containing `row_number`.
+- Verification confirms that [`engine/src/engine/signals/rules.py`](file:///c:/Users/Chinmay/Desktop/Vs%20Code/apaar-integrity-platform/engine/src/engine/signals/rules.py#L30) executes the per-row validation hook path and **only emits `Signal(code="QUALIFYING_BELOW_NORM", severity="warning")`**.
+- It does **not** emit pool capacity violations or unexpected codes in hook mode.
+
+### 2. `SHARED_CONTACT_THRESHOLD`
+- The live backend uses `shared_contact_threshold = 5` (`.env.example` and `backend/app/core/config.py`).
+- In the synthetic dataset, both planted clusters contain $\ge 6$ students (one cluster of 6, one cluster of 10). Both threshold 5 and threshold 6 correctly flag all 16 planted records with 0 false positives.
+- `engine.config` aligns with the live backend default of `SHARED_CONTACT_THRESHOLD = 5`.
+
+---
+
+## 7. Reproducibility
+
+To reproduce all metrics from a clean repository checkout:
 
 1. Generate the deterministic synthetic dataset:
    ```bash
@@ -138,15 +137,15 @@ To reproduce these metrics from a clean checkout:
    cd ..
    ```
 
-2. Execute the black-box evaluation pipeline:
+2. Run the evaluation pipeline:
    ```bash
    uv run python -m engine.evaluation.pipeline datagen/out evaluation/results.json
    ```
 
-3. Run the automated test suite:
+3. Run the automated test suites:
    ```bash
-   uv run pytest engine/tests/test_evaluation_pipeline.py
    uv run pytest engine/tests
+   uv run pytest backend/tests/test_validation_rules.py
    ```
 
 All results serialize directly to [`evaluation/results.json`](file:///c:/Users/Chinmay/Desktop/Vs%20Code/apaar-integrity-platform/evaluation/results.json).
