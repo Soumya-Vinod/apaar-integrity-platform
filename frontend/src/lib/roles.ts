@@ -139,9 +139,10 @@ export interface ActionAccess {
   roles: readonly Role[]
 }
 
-// Write actions available to institution staff. Keep in step with the backend routers;
-// test/roles.test.ts compares each entry with its guard.
+// Actions behind a role guard, with the roles the backend allows. Keep in step with the
+// backend routers; test/roles.test.ts compares each entry with its guard.
 export const ACTIONS = {
+  // ---- institution staff
   upload_batch: { endpoint: 'POST /batches', roles: ['institution_admin', 'institution_operator'] },
   map_batch: {
     endpoint: 'POST /batches/{batch_id}/mapping',
@@ -181,6 +182,33 @@ export const ACTIONS = {
     endpoint: 'PUT /institutions/{institution_id}/webhook',
     roles: ['institution_admin', 'aicte_admin'],
   },
+  // SIMULATED APAAR lookup.
+  verify_apaar: {
+    endpoint: 'POST /integrations/apaar/verify',
+    roles: ['institution_admin', 'institution_operator', 'aicte_admin'],
+  },
+  // ---- AICTE. An auditor sees everything and changes nothing.
+  resolve_review_case: { endpoint: 'POST /review-cases/{case_id}/resolve', roles: ['aicte_admin'] },
+  decide_edit_request: {
+    endpoint: 'POST /edit-requests/{edit_request_id}/decision',
+    roles: ['aicte_admin'],
+  },
+  mark_no_response: { endpoint: 'POST /admin/admissions/mark-no-response', roles: ['aicte_admin'] },
+  create_submission_window: { endpoint: 'POST /submission-windows', roles: ['aicte_admin'] },
+  lock_submission_window: {
+    endpoint: 'POST /submission-windows/{window_id}/lock',
+    roles: ['aicte_admin'],
+  },
+  scan_blind_match: { endpoint: 'POST /admin/blind-match/scan', roles: ['aicte_admin'] },
+  encode_blind_match: { endpoint: 'POST /blind-match/encode', roles: ['aicte_admin'] },
+  run_engine: { endpoint: 'POST /engine/*', roles: ['aicte_admin'] },
+  // Read-only actions an auditor keeps.
+  verify_audit_chain: { endpoint: 'GET /audit/verify', roles: ['aicte_admin', 'auditor'] },
+  download_enrolment_report: { endpoint: 'GET /reports/enrolment', roles: ['aicte_admin', 'auditor'] },
+  load_accreditation_report: {
+    endpoint: 'GET /reports/accreditation/{institution_id}',
+    roles: ['aicte_admin', 'auditor', 'institution_admin'],
+  },
 } as const satisfies Record<string, ActionAccess>
 
 export type Action = keyof typeof ACTIONS
@@ -189,13 +217,21 @@ export function canPerform(role: Role, action: Action): boolean {
   return (ACTIONS[action].roles as readonly Role[]).includes(role)
 }
 
+export const READ_ONLY_HINT = 'Auditors have read-only access'
+
 /** "Needs institution admin" when ``role`` may not perform ``action``, else undefined. */
 export function actionHint(role: Role, action: Action): string | undefined {
   if (canPerform(role, action)) return undefined
+  if (role === 'auditor') return READ_ONLY_HINT
   const label = ROLE_LABELS[ACTIONS[action].roles[0]]
   return `Needs ${label.replace(/^[A-Z][a-z]/, (start) => start.toLowerCase())}`
 }
 
 export function useActionHint(action: Action): string | undefined {
   return actionHint(useIdentity().role, action)
+}
+
+/** Text of the "Signed in as …" badge. */
+export function roleBadge(role: Role): string {
+  return role === 'auditor' ? `${ROLE_LABELS.auditor} · read-only` : ROLE_LABELS[role]
 }

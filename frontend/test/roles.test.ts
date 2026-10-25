@@ -11,6 +11,7 @@ import {
   canAccess,
   canPerform,
   routeAfterRoleChange,
+  roleBadge,
   routeFor,
   type Action,
 } from '../src/lib/roles.ts'
@@ -51,7 +52,8 @@ describe('role routing', () => {
   })
 })
 
-// Router file and guard constant behind each action in ACTIONS.
+// Router file and the guard behind each action in ACTIONS: a guard constant (UPPER_CASE),
+// or for an inline Depends(require_roles(...)) the route path or prefix that precedes it.
 const GUARDS: Record<Exclude<Action, 'resolve_review_issue'>, [string, string]> = {
   upload_batch: ['batches.py', 'INTEGRATORS'],
   map_batch: ['batches.py', 'UPLOADERS'],
@@ -62,15 +64,34 @@ const GUARDS: Record<Exclude<Action, 'resolve_review_issue'>, [string, string]> 
   resolve_issue: ['validation_issues.py', 'RESOLVERS'],
   manage_api_keys: ['institutions.py', 'KEY_ADMINS'],
   set_webhook: ['institutions.py', 'KEY_ADMINS'],
+  verify_apaar: ['integrations.py', '"/apaar/verify"'],
+  resolve_review_case: ['review_cases.py', 'RESOLVERS'],
+  decide_edit_request: ['admissions.py', 'DECIDERS'],
+  mark_no_response: ['admissions.py', 'DECIDERS'],
+  create_submission_window: ['submission_windows.py', 'SETTERS'],
+  lock_submission_window: ['submission_windows.py', 'SETTERS'],
+  scan_blind_match: ['blind_match_scan.py', '"/scan"'],
+  encode_blind_match: ['blind_match.py', '"/encode"'],
+  run_engine: ['engine.py', 'prefix="/engine"'],
+  verify_audit_chain: ['audit.py', '"/verify"'],
+  download_enrolment_report: ['reports.py', 'ENROLMENT_READERS'],
+  load_accreditation_report: ['reports.py', 'ACCREDITATION_READERS'],
 }
 
 const routers = new URL('../../backend/app/routers/', import.meta.url)
 
 function backendRoles(file: string, guard: string): string[] {
   const source = readFileSync(new URL(file, routers), 'utf8')
-  const match = new RegExp(`^${guard} = (?:require_roles|api_key_or_roles)\\(([^)]*)\\)`, 'm').exec(source)
-  assert.ok(match, `${guard} in ${file}`)
-  return [...match[1].matchAll(/"([a-z_]+)"/g)].map((found) => found[1]).sort()
+  let args: string | undefined
+  if (/^[A-Z_]+$/.test(guard)) {
+    const pattern = new RegExp(`^${guard} = (?:require_roles|api_key_or_roles)\\(([^)]*)\\)`, 'm')
+    args = pattern.exec(source)?.[1]
+  } else {
+    const at = source.indexOf(guard)
+    if (at >= 0) args = /require_roles\(([^)]*)\)/.exec(source.slice(at))?.[1]
+  }
+  assert.ok(args, `${guard} in ${file}`)
+  return [...args.matchAll(/"([a-z_]+)"/g)].map((found) => found[1]).sort()
 }
 
 describe('action roles', () => {
@@ -100,5 +121,20 @@ describe('action roles', () => {
     assert.equal(actionHint('institution_admin', 'resolve_review_issue'), 'Needs AICTE admin')
     assert.equal(actionHint('institution_admin', 'withdraw_admission'), undefined)
     assert.equal(ROLE_LABELS.institution_operator, 'Institution operator')
+  })
+
+  it('keeps the auditor read-only', () => {
+    const allowed = (Object.keys(ACTIONS) as Action[]).filter((action) => canPerform('auditor', action))
+    assert.deepEqual(allowed.sort(), [
+      'download_enrolment_report',
+      'load_accreditation_report',
+      'verify_audit_chain',
+    ])
+    for (const action of ['resolve_review_case', 'decide_edit_request', 'scan_blind_match'] as const) {
+      assert.ok(canPerform('aicte_admin', action), action)
+      assert.equal(actionHint('auditor', action), 'Auditors have read-only access')
+    }
+    assert.equal(roleBadge('auditor'), 'Auditor · read-only')
+    assert.equal(roleBadge('aicte_admin'), 'AICTE admin')
   })
 })
